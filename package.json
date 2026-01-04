@@ -1,0 +1,52 @@
+{
+  "name": "opennextjs-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive CLI/TUI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers",
+  "keywords": [
+    "opennextjs",
+    "opennext",
+    "nextjs",
+    "cloudflare",
+    "workers",
+    "cli",
+    "tui",
+    "setup",
+    "configuration"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JSONbored/opennextjs-cli"
+  },
+  "license": "MIT",
+  "author": "JSONbored",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "turbo run type-check"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "eslint": "^9.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "git-cliff": "^2.5.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "turbo": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

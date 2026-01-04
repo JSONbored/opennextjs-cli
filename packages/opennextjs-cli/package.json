@@ -1,0 +1,64 @@
+{
+  "name": "opennextjs-cli",
+  "version": "0.1.0",
+  "description": "Interactive CLI/TUI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers",
+  "type": "module",
+  "bin": {
+    "opennextjs-cli": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.{ts,json}\"",
+    "changelog:generate": "git-cliff --config ../../cliff.toml --tag v$(node -p \"require('./package.json').version\")",
+    "changelog:preview": "git-cliff --config ../../cliff.toml --latest --unreleased",
+    "bump:major": "tsx ../../scripts/bump-version.ts major",
+    "bump:minor": "tsx ../../scripts/bump-version.ts minor",
+    "bump:patch": "tsx ../../scripts/bump-version.ts patch"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "^1.14.7",
+    "chalk": "^5.3.0",
+    "commander": "^13.1.0",
+    "fs-extra": "^11.2.0",
+    "glob": "^11.0.0",
+    "inquirer": "^9.2.12",
+    "zod": "^4.3.4"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "keywords": [
+    "opennextjs",
+    "opennext",
+    "nextjs",
+    "cloudflare",
+    "workers",
+    "cli"
+  ],
+  "author": "JSONbored",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JSONbored/opennextjs-cli",
+    "directory": "packages/opennextjs-cli"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
