@@ -9,6 +9,24 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "default": "./dist/schemas/index.js"
+    },
+    "./platforms/cloudflare": {
+      "types": "./dist/platforms/cloudflare/index.d.ts",
+      "default": "./dist/platforms/cloudflare/index.js"
+    }
+  },
   "files": [
     "dist"
   ],

@@ -8,11 +8,13 @@
 
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
-import { promptProjectName } from '../prompts.js';
+import { promptProjectName, promptPackageManager } from '../prompts.js';
 import { promptCloudflareConfig } from '../platforms/cloudflare/prompts.js';
 import { generateCloudflareConfig } from '../platforms/cloudflare/index.js';
 import { addDependency, installDependencies } from '../utils/package-manager.js';
 import { logger } from '../utils/logger.js';
+import { isGitInitialized, isGitAvailable, initializeGit, createGitignore, createInitialCommit } from '../utils/git.js';
+import { promptConfirmation } from '../prompts.js';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
@@ -102,6 +104,10 @@ Next Steps:
         // Get project name
         const finalProjectName = projectName || (await promptProjectName());
 
+        // Get package manager
+        logger.section('Package Manager');
+        const selectedPackageManager = await promptPackageManager();
+
         // Create project directory
         const projectPath = join(process.cwd(), finalProjectName);
         if (projectPath !== process.cwd()) {
@@ -137,24 +143,61 @@ Next Steps:
         // Install OpenNext.js Cloudflare
         const opennextSpinner = p.spinner();
         opennextSpinner.start('Installing @opennextjs/cloudflare...');
-        await addDependency('@opennextjs/cloudflare', false, projectPath);
+        await addDependency('@opennextjs/cloudflare', false, projectPath, selectedPackageManager);
         opennextSpinner.stop('@opennextjs/cloudflare installed');
 
         // Install wrangler as dev dependency
         const wranglerSpinner = p.spinner();
         wranglerSpinner.start('Installing wrangler...');
-        await addDependency('wrangler', true, projectPath);
+        await addDependency('wrangler', true, projectPath, selectedPackageManager);
         wranglerSpinner.stop('wrangler installed');
 
         // Install all dependencies
         const depsSpinner = p.spinner();
         depsSpinner.start('Installing dependencies...');
-        await installDependencies(projectPath);
+        await installDependencies(projectPath, selectedPackageManager);
         depsSpinner.stop('Dependencies installed');
 
+        // Git initialization
+        if (isGitAvailable() && !isGitInitialized(projectPath)) {
+          logger.section('Git Setup');
+          const initGit = await promptConfirmation(
+            'Initialize git repository?',
+            true
+          );
+
+          if (initGit) {
+            const gitSpinner = p.spinner();
+            gitSpinner.start('Initializing git repository...');
+            
+            if (initializeGit(projectPath)) {
+              createGitignore(projectPath);
+              gitSpinner.stop('Git repository initialized');
+
+              const makeCommit = await promptConfirmation(
+                'Create initial commit?',
+                true
+              );
+
+              if (makeCommit) {
+                const commitSpinner = p.spinner();
+                commitSpinner.start('Creating initial commit...');
+                if (createInitialCommit(projectPath, 'Initial commit from opennextjs-cli')) {
+                  commitSpinner.stop('Initial commit created');
+                } else {
+                  commitSpinner.stop('Failed to create initial commit');
+                }
+              }
+            } else {
+              gitSpinner.stop('Failed to initialize git repository');
+            }
+          }
+        }
+
         logger.success(`Project "${finalProjectName}" initialized successfully!`);
+        const pmCommand = selectedPackageManager === 'pnpm' ? 'pnpm' : selectedPackageManager === 'yarn' ? 'yarn' : 'npm';
         p.note(
-          `Next steps:\n\n  cd ${finalProjectName}\n  pnpm dev        # Start development server\n  pnpm preview    # Preview with Cloudflare Workers\n  pnpm deploy     # Deploy to Cloudflare`,
+          `Next steps:\n\n  cd ${finalProjectName}\n  ${pmCommand} dev        # Start development server\n  ${pmCommand} preview    # Preview with Cloudflare Workers\n  ${pmCommand} deploy     # Deploy to Cloudflare`,
           '🎉 Ready to Go!'
         );
         p.outro('Project initialized successfully!');

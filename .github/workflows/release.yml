@@ -1,14 +1,14 @@
 # Package Release Workflow
 #
 # Automatically releases the opennextjs-cli package to npm when a version tag
-# is pushed. Uses OIDC for npm authentication (no NPM_TOKEN secret required).
+# is pushed. Supports both NPM_TOKEN (for first release) and OIDC (for subsequent releases).
 #
 # **What it does:**
 # 1. Builds and tests the package
 # 2. Extracts version from tag (e.g., v1.0.0 → 1.0.0)
 # 3. Verifies package.json version matches tag version
 # 4. Generates changelog automatically using git-cliff
-# 5. Publishes to npm via OIDC
+# 5. Publishes to npm (tries OIDC first, falls back to NPM_TOKEN)
 # 6. Creates GitHub Release with changelog notes
 #
 # **Trigger:**
@@ -20,12 +20,22 @@
 #
 # **Prerequisites:**
 # - package.json version must match tag version (e.g., 1.0.0)
-# - npm package must have GitHub Actions configured as trusted publisher
-#   (one-time setup on npmjs.com → Account Settings → Access Tokens → Automation)
 #
-# **OIDC Setup:**
-# - No NPM_TOKEN secret required
-# - Uses GitHub OIDC for automatic authentication
+# **First Release (NPM_TOKEN):**
+# - Requires NPM_TOKEN secret in GitHub repository
+# - Create token: npmjs.com → Account Settings → Access Tokens → Generate New Token (Automation)
+# - Add secret: GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+# - Name: NPM_TOKEN
+# - Value: Your npm automation token
+#
+# **Subsequent Releases (OIDC - Recommended):**
+# - After first release, set up OIDC trusted publishing:
+#   1. Go to npmjs.com → Account Settings → Access Tokens → Automation
+#   2. Click "Add GitHub Actions" or "Configure" next to "Trusted Publishers"
+#   3. Select repository: JSONbored/opennextjs-cli
+#   4. Select workflow: .github/workflows/release.yml
+#   5. Save
+# - Once OIDC is configured, NPM_TOKEN is no longer needed
 # - More secure than token-based authentication
 # - Automatic token rotation
 name: Release
@@ -136,11 +146,41 @@ jobs:
           cat /tmp/changelog-section.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Publish to npm
+      - name: Publish to npm (try OIDC first)
+        id: publish-oidc
         working-directory: packages/opennextjs-cli
         run: |
+          # Try publishing with OIDC (if configured)
+          npm publish --access public && \
+          echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via OIDC)" || \
+          echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
+        continue-on-error: true
+
+      - name: Publish to npm (fallback to NPM_TOKEN)
+        if: steps.publish-oidc.outcome == 'failure'
+        working-directory: packages/opennextjs-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "❌ NPM_TOKEN secret not found. For first release, you need to:" >&2
+            echo "   1. Create npm automation token: https://www.npmjs.com/settings/JSONbored/tokens" >&2
+            echo "   2. Add NPM_TOKEN secret to GitHub: Settings → Secrets and variables → Actions" >&2
+            echo "   3. Name the secret: NPM_TOKEN" >&2
+            exit 1
+          fi
+          # Configure npm to use token
+          echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
           npm publish --access public
-          echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm"
+          echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
+          echo "" >&2
+          echo "💡 After first release, set up OIDC trusted publishing for better security:" >&2
+          echo "   1. Go to: https://www.npmjs.com/settings/JSONbored/automation" >&2
+          echo "   2. Click 'Add GitHub Actions' or 'Configure' next to 'Trusted Publishers'" >&2
+          echo "   3. Select repository: JSONbored/opennextjs-cli" >&2
+          echo "   4. Select workflow: .github/workflows/release.yml" >&2
+          echo "   5. Save" >&2
+          echo "   Then you can remove the NPM_TOKEN secret." >&2
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

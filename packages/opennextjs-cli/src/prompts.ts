@@ -167,3 +167,27 @@ export async function promptConfirmation(
 
   return confirmed as boolean;
 }
+
+/**
+ * Prompts for package manager selection
+ */
+export async function promptPackageManager(
+  detected?: 'pnpm' | 'npm' | 'yarn'
+): Promise<'pnpm' | 'npm' | 'yarn'> {
+  const packageManager = await p.select({
+    message: 'Which package manager do you want to use?',
+    options: [
+      { value: 'pnpm' as const, label: 'pnpm (recommended)' },
+      { value: 'npm' as const, label: 'npm' },
+      { value: 'yarn' as const, label: 'yarn' },
+    ],
+    initialValue: (detected || 'pnpm') as 'pnpm' | 'npm' | 'yarn',
+  });
+
+  if (isCancel(packageManager)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
+
+  return packageManager as 'pnpm' | 'npm' | 'yarn';
+}

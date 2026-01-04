@@ -10,6 +10,18 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { addCommand } from './commands/add.js';
 import { configCommand } from './commands/config.js';
+import { statusCommand } from './commands/status.js';
+import { validateCommand } from './commands/validate.js';
+import { deployCommand } from './commands/deploy.js';
+import { previewCommand } from './commands/preview.js';
+import { updateCommand } from './commands/update.js';
+import { envCommand } from './commands/env.js';
+import { cloudflareCommand } from './commands/cloudflare.js';
+import { doctorCommand } from './commands/doctor.js';
+import { mcpCommand } from './commands/mcp.js';
+import { setupCommand } from './commands/setup.js';
+import { setLogLevel } from './utils/logger.js';
+import { getMergedConfig } from './utils/config-manager.js';
 
 /**
  * Main CLI program instance
@@ -34,6 +46,21 @@ program
     'Interactive CLI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers deployments'
   )
   .version('0.1.0', '-v, --version', 'Display version number')
+  .option('-V, --verbose', 'Enable verbose logging')
+  .option('-D, --debug', 'Enable debug logging (includes verbose)')
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts();
+    
+    // Load config for default verbose setting
+    const config = getMergedConfig();
+    
+    // Set log level from flags or config
+    if (opts['debug']) {
+      setLogLevel('debug');
+    } else if (opts['verbose'] || config.verbose) {
+      setLogLevel('verbose');
+    }
+  })
   .addHelpText(
     'after',
     `
@@ -60,3 +87,13 @@ Quick Start:
 program.addCommand(initCommand());
 program.addCommand(addCommand());
 program.addCommand(configCommand());
+program.addCommand(statusCommand());
+program.addCommand(validateCommand());
+program.addCommand(deployCommand());
+program.addCommand(previewCommand());
+program.addCommand(updateCommand());
+program.addCommand(envCommand());
+program.addCommand(cloudflareCommand());
+program.addCommand(doctorCommand());
+program.addCommand(mcpCommand());
+program.addCommand(setupCommand());

@@ -61,3 +61,4 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+TEST_FLOW.md

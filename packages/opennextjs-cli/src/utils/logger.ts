@@ -9,6 +9,44 @@
 import * as p from '@clack/prompts';
 
 /**
+ * Log level
+ */
+export type LogLevel = 'info' | 'verbose' | 'debug';
+
+/**
+ * Global log level setting
+ */
+let globalLogLevel: LogLevel = 'info';
+
+/**
+ * Set global log level
+ */
+export function setLogLevel(level: LogLevel): void {
+  globalLogLevel = level;
+}
+
+/**
+ * Get global log level
+ */
+export function getLogLevel(): LogLevel {
+  return globalLogLevel;
+}
+
+/**
+ * Check if verbose logging is enabled
+ */
+function isVerbose(): boolean {
+  return globalLogLevel === 'verbose' || globalLogLevel === 'debug';
+}
+
+/**
+ * Check if debug logging is enabled
+ */
+function isDebug(): boolean {
+  return globalLogLevel === 'debug';
+}
+
+/**
  * Logger class using @clack/prompts
  *
  * @description
@@ -20,8 +58,32 @@ export class Logger {
    */
   info(message: string, data?: unknown): void {
     p.log.info(message);
-    if (data) {
+    if (data && (isVerbose() || isDebug())) {
       p.log.info(JSON.stringify(data, null, 2));
+    }
+  }
+
+  /**
+   * Log a verbose message (only shown in verbose/debug mode)
+   */
+  verbose(message: string, data?: unknown): void {
+    if (isVerbose()) {
+      p.log.info(`[verbose] ${message}`);
+      if (data && isDebug()) {
+        p.log.info(JSON.stringify(data, null, 2));
+      }
+    }
+  }
+
+  /**
+   * Log a debug message (only shown in debug mode)
+   */
+  debug(message: string, data?: unknown): void {
+    if (isDebug()) {
+      p.log.info(`[debug] ${message}`);
+      if (data) {
+        p.log.info(JSON.stringify(data, null, 2));
+      }
     }
   }
 

@@ -8,6 +8,7 @@
 
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
+import { join } from 'path';
 import { detectNextJsProject, getNextJsVersion } from '../utils/project-detector.js';
 import { promptCloudflareConfig } from '../platforms/cloudflare/prompts.js';
 import { generateCloudflareConfig } from '../platforms/cloudflare/index.js';
@@ -16,6 +17,10 @@ import { logger } from '../utils/logger.js';
 import { promptConfirmation } from '../prompts.js';
 import { backupFiles } from '../utils/backup.js';
 import { verifyCloudflareSetup } from '../utils/cloudflare-check.js';
+import { performSafetyChecks, isSafeToWrite } from '../utils/safety.js';
+import { detectMonorepo, isInMonorepo } from '../utils/monorepo-detector.js';
+import { getRollbackManager } from '../utils/rollback.js';
+import { getMergedConfig } from '../utils/config-manager.js';
 
 /**
  * Creates the `add` command for adding OpenNext to existing projects
@@ -105,14 +110,72 @@ Troubleshooting:
       skipCloudflareCheck?: boolean;
       skipBackup?: boolean;
     }) => {
+      const rollbackManager = getRollbackManager();
+      const projectRoot = process.cwd();
+
       try {
+        // Safety checks
+        logger.section('Safety Checks');
+        const safetyCheck = performSafetyChecks(projectRoot, 'add');
+        
+        if (safetyCheck.errors.length > 0) {
+          logger.error('Safety checks failed:');
+          for (const error of safetyCheck.errors) {
+            logger.error(`  • ${error}`);
+          }
+          process.exit(1);
+        }
+
+        if (safetyCheck.warnings.length > 0) {
+          logger.warning('Warnings:');
+          for (const warning of safetyCheck.warnings) {
+            logger.warning(`  • ${warning}`);
+          }
+          
+          if (!_options.yes) {
+            const continueAnyway = await promptConfirmation(
+              'Continue despite warnings?',
+              false
+            );
+            if (!continueAnyway) {
+              logger.info('Operation cancelled.');
+              return;
+            }
+          }
+        }
+
+        // Monorepo detection
+        if (isInMonorepo(projectRoot)) {
+          const monorepo = detectMonorepo(projectRoot);
+          logger.section('Monorepo Detected');
+          p.log.info(`Type: ${monorepo.type}`);
+          p.log.info(`Root: ${monorepo.rootPath}`);
+          
+          if (!_options.yes) {
+            const confirmed = await promptConfirmation(
+              `You're in a ${monorepo.type} monorepo. Continue with setup in this package?`,
+              true
+            );
+            if (!confirmed) {
+              logger.info('Operation cancelled.');
+              return;
+            }
+          }
+        }
+
+        // Load CLI configuration
+        const cliConfig = getMergedConfig(projectRoot);
+        if (cliConfig.autoBackup === false && !_options.skipBackup) {
+          _options.skipBackup = true;
+        }
+
         logger.section('Project Detection');
         const detectSpinner = p.spinner();
         detectSpinner.start('Detecting Next.js project...');
 
         // Detect project
-        const detection = detectNextJsProject();
-        const nextJsVersion = getNextJsVersion();
+        const detection = detectNextJsProject(projectRoot);
+        const nextJsVersion = getNextJsVersion(projectRoot);
         
         detectSpinner.stop('Project detected');
 
@@ -153,11 +216,28 @@ Troubleshooting:
           }
         }
 
+        // Validate file paths are safe
+        const filesToCreate = ['wrangler.toml', 'open-next.config.ts'];
+        for (const file of filesToCreate) {
+          if (!isSafeToWrite(file, projectRoot)) {
+            logger.error(`Unsafe file path: ${file}`);
+            process.exit(1);
+          }
+        }
+
         // Backup existing files
-        const filesToBackup = ['wrangler.toml', 'open-next.config.ts', 'next.config.mjs'];
-        const backups = backupFiles(filesToBackup);
-        if (backups.some((b) => b !== undefined)) {
-          logger.info('Created backups of existing configuration files');
+        if (!_options.skipBackup) {
+          const filesToBackup = ['wrangler.toml', 'open-next.config.ts', 'next.config.mjs'];
+          const backups = backupFiles(filesToBackup, join(projectRoot, '.backup'));
+          if (backups.some((b) => b !== undefined)) {
+            logger.info('Created backups of existing configuration files');
+            // Record backups for rollback
+            backups.forEach((backupPath, i) => {
+              if (backupPath) {
+                rollbackManager.recordBackup(filesToBackup[i]!, backupPath);
+              }
+            });
+          }
         }
 
         // Prompt for Cloudflare configuration
@@ -200,8 +280,24 @@ Troubleshooting:
           '🚀 Ready to Deploy'
         );
         p.outro('OpenNext.js Cloudflare added successfully!');
+        // Clear rollback manager on success
+        rollbackManager.clear();
       } catch (error) {
-        logger.error('Failed to add OpenNext.js Cloudflare', error);
+        logger.error('Failed to add OpenNext.js Cloudflare configuration', error);
+        
+        // Attempt rollback
+        try {
+          const rollback = await promptConfirmation(
+            'Operation failed. Attempt to rollback changes?',
+            true
+          );
+          if (rollback) {
+            rollbackManager.rollback();
+          }
+        } catch (rollbackError) {
+          logger.warning('Rollback failed:', rollbackError);
+        }
+        
         process.exit(1);
       }
     });

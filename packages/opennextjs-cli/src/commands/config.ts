@@ -8,11 +8,17 @@
 
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
+import { join } from 'path';
 import { logger } from '../utils/logger.js';
 import { detectNextJsProject } from '../utils/project-detector.js';
 import { promptCloudflareConfig } from '../platforms/cloudflare/prompts.js';
 import { generateCloudflareConfig } from '../platforms/cloudflare/index.js';
 import { backupFiles } from '../utils/backup.js';
+import { performSafetyChecks, isSafeToWrite } from '../utils/safety.js';
+import { detectMonorepo, isInMonorepo } from '../utils/monorepo-detector.js';
+import { getRollbackManager } from '../utils/rollback.js';
+import { getMergedConfig } from '../utils/config-manager.js';
+import { promptConfirmation } from '../prompts.js';
 
 /**
  * Creates the `config` command for updating configuration
@@ -85,9 +91,35 @@ Note:
       cachingStrategy?: string;
       reset?: boolean;
     }) => {
+      const rollbackManager = getRollbackManager();
+      const projectRoot = process.cwd();
+
       try {
+        // Safety checks
+        logger.section('Safety Checks');
+        const safetyCheck = performSafetyChecks(projectRoot, 'config');
+        
+        if (safetyCheck.errors.length > 0) {
+          logger.error('Safety checks failed:');
+          for (const error of safetyCheck.errors) {
+            logger.error(`  • ${error}`);
+          }
+          process.exit(1);
+        }
+
+        // Monorepo detection
+        if (isInMonorepo(projectRoot)) {
+          const monorepo = detectMonorepo(projectRoot);
+          logger.section('Monorepo Detected');
+          p.log.info(`Type: ${monorepo.type}`);
+          p.log.info(`Root: ${monorepo.rootPath}`);
+        }
+
+        // Load CLI configuration
+        const cliConfig = getMergedConfig(projectRoot);
+
         // Check if OpenNext.js is configured
-        const detection = detectNextJsProject();
+        const detection = detectNextJsProject(projectRoot);
         
         if (!detection.isNextJsProject) {
           logger.error('No Next.js project detected in the current directory.');
@@ -101,19 +133,48 @@ Note:
           process.exit(1);
         }
 
+        // Confirm destructive operation
+        if (_options.reset && !_options.yes) {
+          const confirmed = await promptConfirmation(
+            'This will reset your configuration to defaults. Continue?',
+            false
+          );
+          if (!confirmed) {
+            logger.info('Operation cancelled.');
+            return;
+          }
+        }
+
         logger.section('Configuration Update');
         logger.info('Updating OpenNext.js Cloudflare configuration...');
 
+        // Validate file paths are safe
+        const filesToUpdate = ['wrangler.toml', 'open-next.config.ts'];
+        for (const file of filesToUpdate) {
+          if (!isSafeToWrite(file, projectRoot)) {
+            logger.error(`Unsafe file path: ${file}`);
+            process.exit(1);
+          }
+        }
+
         // Backup existing files
-        const filesToBackup = ['wrangler.toml', 'open-next.config.ts', 'next.config.mjs'];
-        const backups = backupFiles(filesToBackup);
-        if (backups.some((b) => b !== undefined)) {
-          logger.info('Created backups of existing configuration files');
+        if (cliConfig.autoBackup !== false) {
+          const filesToBackup = ['wrangler.toml', 'open-next.config.ts', 'next.config.mjs'];
+          const backups = backupFiles(filesToBackup, join(projectRoot, '.backup'));
+          if (backups.some((b) => b !== undefined)) {
+            logger.info('Created backups of existing configuration files');
+            // Record backups for rollback
+            backups.forEach((backupPath, i) => {
+              if (backupPath) {
+                rollbackManager.recordBackup(filesToBackup[i]!, backupPath);
+              }
+            });
+          }
         }
 
         // Prompt for new configuration
         logger.section('New Configuration');
-        const config = await promptCloudflareConfig({
+        const cloudflareConfig = await promptCloudflareConfig({
           nextJsVersion: '15.1.0', // TODO: Detect from package.json
         });
 
@@ -121,8 +182,11 @@ Note:
         logger.section('Updating Files');
         const configSpinner = p.spinner();
         configSpinner.start('Updating configuration files...');
-        await generateCloudflareConfig(config, process.cwd());
+        await generateCloudflareConfig(cloudflareConfig, process.cwd());
         configSpinner.stop('Configuration files updated');
+
+        // Clear rollback manager on success
+        rollbackManager.clear();
 
         logger.success('OpenNext.js Cloudflare configuration has been updated!');
         p.note(
@@ -132,6 +196,20 @@ Note:
         p.outro('Configuration updated successfully!');
       } catch (error) {
         logger.error('Failed to update configuration', error);
+        
+        // Attempt rollback
+        try {
+          const rollback = await promptConfirmation(
+            'Operation failed. Attempt to rollback changes?',
+            true
+          );
+          if (rollback) {
+            rollbackManager.rollback();
+          }
+        } catch (rollbackError) {
+          logger.warning('Rollback failed:', rollbackError);
+        }
+        
         process.exit(1);
       }
     });

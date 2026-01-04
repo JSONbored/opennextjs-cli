@@ -1,0 +1,59 @@
+{
+  "name": "@jsonbored/opennextjs-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for OpenNext.js Cloudflare projects - enables AI tools to interact with OpenNext.js projects",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "opennextjs-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.{ts,json}\""
+  },
+  "dependencies": {
+    "@jsonbored/opennextjs-cli": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "zod": "^4.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "opennextjs",
+    "opennext",
+    "nextjs",
+    "cloudflare",
+    "workers",
+    "ai",
+    "claude"
+  ],
+  "author": "JSONbored",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JSONbored/opennextjs-cli",
+    "directory": "packages/opennextjs-mcp"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
