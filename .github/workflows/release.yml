@@ -1,14 +1,15 @@
 # Package Release Workflow
 #
-# Automatically releases the opennextjs-cli package to npm when a version tag
-# is pushed. Supports both NPM_TOKEN (for first release) and OIDC (for subsequent releases).
+# Automatically releases both @jsonbored/opennextjs-cli and @jsonbored/opennextjs-mcp
+# packages to npm when a version tag is pushed. Supports both NPM_TOKEN (for first release)
+# and OIDC (for subsequent releases). Both packages are released with synchronized versions.
 #
 # **What it does:**
-# 1. Builds and tests the package
+# 1. Builds both packages (CLI and MCP)
 # 2. Extracts version from tag (e.g., v1.0.0 → 1.0.0)
-# 3. Verifies package.json version matches tag version
+# 3. Verifies both package.json versions match tag version
 # 4. Generates changelog automatically using git-cliff
-# 5. Publishes to npm (tries OIDC first, falls back to NPM_TOKEN)
+# 5. Publishes both packages to npm (tries OIDC first, falls back to NPM_TOKEN)
 # 6. Creates GitHub Release with changelog notes
 #
 # **Trigger:**
@@ -62,8 +63,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 8
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -75,8 +74,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
+      - name: Build CLI package
         working-directory: packages/opennextjs-cli
+        run: pnpm build
+
+      - name: Build MCP package
+        working-directory: packages/opennextjs-mcp
         run: pnpm build
 
       - name: Extract version from tag
@@ -89,16 +92,27 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Tag version: $VERSION"
 
-      - name: Verify package.json version matches tag
+      - name: Verify CLI package.json version matches tag
         working-directory: packages/opennextjs-cli
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           TAG_VERSION="${{ steps.version.outputs.VERSION }}"
           if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "❌ Version mismatch: package.json ($PACKAGE_VERSION) != tag ($TAG_VERSION)" >&2
+            echo "❌ CLI version mismatch: package.json ($PACKAGE_VERSION) != tag ($TAG_VERSION)" >&2
             exit 1
           fi
-          echo "✅ Version match: $PACKAGE_VERSION"
+          echo "✅ CLI version match: $PACKAGE_VERSION"
+
+      - name: Verify MCP package.json version matches tag
+        working-directory: packages/opennextjs-mcp
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ MCP version mismatch: package.json ($PACKAGE_VERSION) != tag ($TAG_VERSION)" >&2
+            exit 1
+          fi
+          echo "✅ MCP version match: $PACKAGE_VERSION"
 
       - name: Check if git-cliff is installed
         id: git-cliff-check
@@ -146,8 +160,8 @@ jobs:
           cat /tmp/changelog-section.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Publish to npm (try OIDC first)
-        id: publish-oidc
+      - name: Publish CLI to npm (try OIDC first)
+        id: publish-cli-oidc
         working-directory: packages/opennextjs-cli
         run: |
           # Try publishing with OIDC (if configured)
@@ -156,8 +170,8 @@ jobs:
           echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
         continue-on-error: true
 
-      - name: Publish to npm (fallback to NPM_TOKEN)
-        if: steps.publish-oidc.outcome == 'failure'
+      - name: Publish CLI to npm (fallback to NPM_TOKEN)
+        if: steps.publish-cli-oidc.outcome == 'failure'
         working-directory: packages/opennextjs-cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -173,13 +187,39 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
           npm publish --access public
           echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
+
+      - name: Publish MCP to npm (try OIDC first)
+        id: publish-mcp-oidc
+        working-directory: packages/opennextjs-mcp
+        run: |
+          # Try publishing with OIDC (if configured)
+          npm publish --access public && \
+          echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via OIDC)" || \
+          echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
+        continue-on-error: true
+
+      - name: Publish MCP to npm (fallback to NPM_TOKEN)
+        if: steps.publish-mcp-oidc.outcome == 'failure'
+        working-directory: packages/opennextjs-mcp
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "❌ NPM_TOKEN secret not found" >&2
+            exit 1
+          fi
+          # Configure npm to use token (if not already configured)
+          if [ ! -f ~/.npmrc ]; then
+            echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
+          fi
+          npm publish --access public
+          echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
           echo "" >&2
-          echo "💡 After first release, set up OIDC trusted publishing for better security:" >&2
+          echo "💡 After first release, set up OIDC trusted publishing for both packages:" >&2
           echo "   1. Go to: https://www.npmjs.com/settings/JSONbored/automation" >&2
-          echo "   2. Click 'Add GitHub Actions' or 'Configure' next to 'Trusted Publishers'" >&2
-          echo "   3. Select repository: JSONbored/opennextjs-cli" >&2
-          echo "   4. Select workflow: .github/workflows/release.yml" >&2
-          echo "   5. Save" >&2
+          echo "   2. Add trusted publisher for @jsonbored/opennextjs-cli" >&2
+          echo "   3. Add trusted publisher for @jsonbored/opennextjs-mcp" >&2
+          echo "   4. Both use: repository JSONbored/opennextjs-cli, workflow .github/workflows/release.yml" >&2
           echo "   Then you can remove the NPM_TOKEN secret." >&2
 
       - name: Create GitHub Release
@@ -188,6 +228,11 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.version.outputs.VERSION }}
           body: |
+            ## Packages Released
+            
+            - `@jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }}`
+            - `@jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }}`
+            
             ${{ env.CHANGELOG_SECTION }}
           draft: false
           prerelease: false

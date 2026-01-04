@@ -1,9 +1,10 @@
 #!/usr/bin/env tsx
 
 /**
- * Version Bump Script for OpenNext.js CLI
+ * Version Bump Script for OpenNext.js Packages
  *
- * Command-line tool for bumping the version in package.json following semantic versioning.
+ * Command-line tool for bumping versions in both CLI and MCP package.json files
+ * following semantic versioning. Both packages are kept in sync.
  * This script is used by the release workflow and can also be run manually.
  *
  * **Semantic Versioning Rules:**
@@ -18,21 +19,22 @@
  *
  * **Examples:**
  * ```bash
- * # Bump minor version (0.1.0 → 0.2.0)
+ * # Bump minor version (0.1.0 → 0.2.0) for both packages
  * tsx scripts/bump-version.ts minor
  *
- * # Bump patch version (0.1.0 → 0.1.1)
+ * # Bump patch version (0.1.0 → 0.1.1) for both packages
  * tsx scripts/bump-version.ts patch
  *
- * # Bump major version (1.0.0 → 2.0.0)
+ * # Bump major version (1.0.0 → 2.0.0) for both packages
  * tsx scripts/bump-version.ts major
  * ```
  *
  * **What it does:**
  * 1. Reads current version from `packages/opennextjs-cli/package.json`
  * 2. Increments version based on bump type
- * 3. Writes updated version back to `packages/opennextjs-cli/package.json`
- * 4. Outputs new version to console
+ * 3. Updates both `packages/opennextjs-cli/package.json` and `packages/opennextjs-mcp/package.json`
+ * 4. Updates MCP's dependency on CLI to match new version
+ * 5. Outputs new version to console
  *
  * **Exit codes:**
  * - `0` - Success
@@ -49,13 +51,15 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const REPO_ROOT = join(__dirname, '..');
-const PACKAGE_JSON_PATH = join(REPO_ROOT, 'packages/opennextjs-cli/package.json');
+const CLI_PACKAGE_JSON_PATH = join(REPO_ROOT, 'packages/opennextjs-cli/package.json');
+const MCP_PACKAGE_JSON_PATH = join(REPO_ROOT, 'packages/opennextjs-mcp/package.json');
 
 /**
- * Bumps the version in package.json following semantic versioning.
+ * Bumps the version in both CLI and MCP package.json files following semantic versioning.
  *
- * Reads the current version from package.json, increments it based on the provided
- * type (major, minor, or patch), and writes the updated version back to the file.
+ * Reads the current version from CLI package.json, increments it based on the provided
+ * type (major, minor, or patch), and updates both packages to the new version.
+ * Also updates MCP's dependency on CLI to match the new version.
  *
  * **Version Increment Logic:**
  * - `major`: Increments major version, resets minor and patch to 0 (1.2.3 → 2.0.0)
@@ -73,9 +77,11 @@ const PACKAGE_JSON_PATH = join(REPO_ROOT, 'packages/opennextjs-cli/package.json'
  * ```
  */
 function bumpVersion(type: 'major' | 'minor' | 'patch'): string {
-  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8'));
-  const [major, minor, patch] = packageJson.version.split('.').map(Number);
+  // Read CLI package.json to get current version
+  const cliPackageJson = JSON.parse(readFileSync(CLI_PACKAGE_JSON_PATH, 'utf8'));
+  const [major, minor, patch] = cliPackageJson.version.split('.').map(Number);
 
+  // Calculate new version
   let newVersion: string;
   if (type === 'major') {
     newVersion = `${major + 1}.0.0`;
@@ -85,8 +91,21 @@ function bumpVersion(type: 'major' | 'minor' | 'patch'): string {
     newVersion = `${major}.${minor}.${patch + 1}`;
   }
 
-  packageJson.version = newVersion;
-  writeFileSync(PACKAGE_JSON_PATH, JSON.stringify(packageJson, null, 2) + '\n');
+  // Update CLI package.json
+  cliPackageJson.version = newVersion;
+  writeFileSync(CLI_PACKAGE_JSON_PATH, JSON.stringify(cliPackageJson, null, 2) + '\n');
+
+  // Update MCP package.json
+  const mcpPackageJson = JSON.parse(readFileSync(MCP_PACKAGE_JSON_PATH, 'utf8'));
+  mcpPackageJson.version = newVersion;
+  
+  // Update MCP's dependency on CLI to match new version
+  if (mcpPackageJson.dependencies && mcpPackageJson.dependencies['@jsonbored/opennextjs-cli']) {
+    // Use caret to allow patch updates
+    mcpPackageJson.dependencies['@jsonbored/opennextjs-cli'] = `^${newVersion}`;
+  }
+  
+  writeFileSync(MCP_PACKAGE_JSON_PATH, JSON.stringify(mcpPackageJson, null, 2) + '\n');
 
   return newVersion;
 }

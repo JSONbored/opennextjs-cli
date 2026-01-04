@@ -9,7 +9,12 @@
 /**
  * Handle start_preview_server tool call
  */
-export async function handlePreview(args: { port?: number }) {
+export async function handlePreview(args: { port?: number }): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   return {
     content: [
       {

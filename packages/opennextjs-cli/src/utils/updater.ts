@@ -26,7 +26,7 @@ export interface PackageUpdateInfo {
  * @param packageName - Name of the package
  * @returns Latest version or undefined if not found
  */
-export async function getLatestVersion(packageName: string): Promise<string | undefined> {
+export function getLatestVersion(packageName: string): string | undefined {
   try {
     const result = execSync(`npm view ${packageName} version`, { encoding: 'utf-8' });
     return result.trim();
@@ -41,17 +41,17 @@ export async function getLatestVersion(packageName: string): Promise<string | un
  * @param projectRoot - Root directory of the project
  * @returns Array of package update information
  */
-export async function checkForUpdates(
+export function checkForUpdates(
   projectRoot: string = process.cwd()
-): Promise<PackageUpdateInfo[]> {
+): PackageUpdateInfo[] {
   const packageJson = readPackageJson(projectRoot);
   if (!packageJson) {
     return [];
   }
 
   const deps = {
-    ...((packageJson['dependencies'] as Record<string, string>) || {}),
-    ...((packageJson['devDependencies'] as Record<string, string>) || {}),
+    ...(packageJson.dependencies || {}),
+    ...(packageJson.devDependencies || {}),
   };
 
   const packagesToCheck = ['@opennextjs/cloudflare', 'wrangler', 'next'];
@@ -63,13 +63,13 @@ export async function checkForUpdates(
       continue;
     }
 
-    const latest = await getLatestVersion(pkg);
+    const latest = getLatestVersion(pkg);
     if (!latest) {
       continue;
     }
 
     // Remove version prefix (^, ~, etc.) for comparison
-    const currentVersion = current.replace(/[\^~]/, '');
+    const currentVersion = (current).replace(/[\^~]/, '');
     const needsUpdate = currentVersion !== latest;
 
     updates.push({
@@ -92,12 +92,12 @@ export async function checkForUpdates(
  * @param packageManager - Package manager to use
  * @returns True if update was successful
  */
-export async function updatePackage(
+export function updatePackage(
   packageName: string,
   isDev: boolean,
   projectRoot: string = process.cwd(),
   packageManager?: ReturnType<typeof detectPackageManager>
-): Promise<boolean> {
+): boolean {
   try {
     const pm = packageManager || detectPackageManager(projectRoot);
     let command: string;

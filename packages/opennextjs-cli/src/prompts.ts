@@ -37,7 +37,7 @@ export async function promptProjectName(defaultName?: string): Promise<string> {
     process.exit(0);
   }
 
-  return projectName as string;
+  return projectName;
 }
 
 /**
@@ -72,7 +72,7 @@ export async function promptCachingStrategy(): Promise<CachingStrategy> {
     process.exit(0);
   }
 
-  return strategy as CachingStrategy;
+  return strategy;
 }
 
 /**
@@ -94,7 +94,7 @@ export async function promptDatabaseOption(): Promise<DatabaseOption> {
     process.exit(0);
   }
 
-  return database as DatabaseOption;
+  return database;
 }
 
 /**
@@ -118,7 +118,7 @@ export async function promptWorkerName(defaultName?: string): Promise<string> {
     process.exit(0);
   }
 
-  return (workerName as string).trim();
+  return (workerName).trim();
 }
 
 /**
@@ -145,7 +145,7 @@ export async function promptNextJsVersion(detectedVersion?: string): Promise<str
     process.exit(0);
   }
 
-  return version as string;
+  return version;
 }
 
 /**
@@ -165,7 +165,7 @@ export async function promptConfirmation(
     process.exit(0);
   }
 
-  return confirmed as boolean;
+  return confirmed;
 }
 
 /**
@@ -181,7 +181,7 @@ export async function promptPackageManager(
       { value: 'npm' as const, label: 'npm' },
       { value: 'yarn' as const, label: 'yarn' },
     ],
-    initialValue: (detected || 'pnpm') as 'pnpm' | 'npm' | 'yarn',
+    initialValue: (detected || 'pnpm'),
   });
 
   if (isCancel(packageManager)) {
@@ -189,5 +189,5 @@ export async function promptPackageManager(
     process.exit(0);
   }
 
-  return packageManager as 'pnpm' | 'npm' | 'yarn';
+  return packageManager;
 }

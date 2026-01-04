@@ -12,7 +12,12 @@ import { readWranglerToml, readOpenNextConfig, readPackageJson, extractWorkerNam
 /**
  * Handle get_project_status tool call
  */
-export async function handleGetProjectStatus(_args: unknown) {
+export async function handleGetProjectStatus(_args: unknown): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   const projectRoot = process.cwd();
   const detection = detectNextJsProject(projectRoot);
   const nextJsVersion = getNextJsVersion(projectRoot);

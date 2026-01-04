@@ -9,7 +9,15 @@
 /**
  * Get setup-opennextjs-project prompt
  */
-export async function getSetupPrompt() {
+export async function getSetupPrompt(): Promise<{
+  messages: Array<{
+    role: 'user';
+    content: {
+      type: 'text';
+      text: string;
+    };
+  }>;
+}> {
   return {
     messages: [
       {

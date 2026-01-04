@@ -9,7 +9,15 @@
 /**
  * Get troubleshoot-deployment prompt
  */
-export async function getTroubleshootPrompt() {
+export async function getTroubleshootPrompt(): Promise<{
+  messages: Array<{
+    role: 'user';
+    content: {
+      type: 'text';
+      text: string;
+    };
+  }>;
+}> {
   return {
     messages: [
       {

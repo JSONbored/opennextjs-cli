@@ -73,8 +73,8 @@ export async function promptCloudflareConfig(defaults?: {
     workerName,
     cachingStrategy,
     database,
-    imageOptimization: imageOptimization as boolean,
-    analyticsEngine: analyticsEngine as boolean,
+    imageOptimization: imageOptimization,
+    analyticsEngine: analyticsEngine,
     environments,
     nextJsVersion,
     compatibilityDate,
@@ -171,10 +171,10 @@ async function promptEnvironments(): Promise<CloudflareConfig['environments']> {
       name: 'production',
       observability: {
         logs: true,
-        logSamplingRate: parseFloat(prodLogSampling as string),
+        logSamplingRate: parseFloat(prodLogSampling),
         traces: true,
-        traceSamplingRate: parseFloat(prodTraceSampling as string),
-        logpush: prodLogpush as boolean,
+        traceSamplingRate: parseFloat(prodTraceSampling),
+        logpush: prodLogpush,
       },
     });
   }

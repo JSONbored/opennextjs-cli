@@ -37,14 +37,14 @@ const PROMPTS = [
  */
 export function registerAllPrompts(server: Server): void {
   // Register prompts/list handler
-  (server as unknown as { setRequestHandler: (method: string, handler: () => Promise<unknown>) => void }).setRequestHandler('prompts/list', async () => {
-    return {
+  (server as unknown as { setRequestHandler: (method: string, handler: () => Promise<unknown>) => void }).setRequestHandler('prompts/list', () => {
+    return Promise.resolve({
       prompts: PROMPTS.map((prompt) => ({
         name: prompt.name,
         description: prompt.description,
         arguments: [],
       })),
-    };
+    });
   });
 
   // Register prompts/get handler

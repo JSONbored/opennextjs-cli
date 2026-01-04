@@ -143,19 +143,19 @@ Next Steps:
         // Install OpenNext.js Cloudflare
         const opennextSpinner = p.spinner();
         opennextSpinner.start('Installing @opennextjs/cloudflare...');
-        await addDependency('@opennextjs/cloudflare', false, projectPath, selectedPackageManager);
+        addDependency('@opennextjs/cloudflare', false, projectPath, selectedPackageManager);
         opennextSpinner.stop('@opennextjs/cloudflare installed');
 
         // Install wrangler as dev dependency
         const wranglerSpinner = p.spinner();
         wranglerSpinner.start('Installing wrangler...');
-        await addDependency('wrangler', true, projectPath, selectedPackageManager);
+        addDependency('wrangler', true, projectPath, selectedPackageManager);
         wranglerSpinner.stop('wrangler installed');
 
         // Install all dependencies
         const depsSpinner = p.spinner();
         depsSpinner.start('Installing dependencies...');
-        await installDependencies(projectPath, selectedPackageManager);
+        installDependencies(projectPath, selectedPackageManager);
         depsSpinner.stop('Dependencies installed');
 
         // Git initialization

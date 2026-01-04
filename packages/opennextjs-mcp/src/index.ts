@@ -17,7 +17,7 @@ import { registerAllPrompts } from './prompts/index.js';
 /**
  * Main entry point for MCP server
  */
-async function main() {
+async function main(): Promise<void> {
   const server = new Server(
     {
       name: 'opennextjs-mcp',

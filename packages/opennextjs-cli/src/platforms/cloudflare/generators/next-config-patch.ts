@@ -27,10 +27,10 @@ import { logger } from '../../../utils/logger.js';
  * await generateNextConfigPatch(config, process.cwd());
  * ```
  */
-export async function generateNextConfigPatch(
+export function generateNextConfigPatch(
   config: CloudflareConfig,
   projectRoot: string
-): Promise<void> {
+): void {
   const filePath = join(projectRoot, 'next.config.mjs');
   const isNextJs16 = config.nextJsVersion.startsWith('16');
 

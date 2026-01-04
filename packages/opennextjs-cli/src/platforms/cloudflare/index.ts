@@ -37,16 +37,16 @@ export async function generateCloudflareConfig(
   projectRoot: string
 ): Promise<void> {
   // Generate open-next.config.ts
-  await generateOpenNextConfig(config, projectRoot);
+  generateOpenNextConfig(config, projectRoot);
 
   // Generate wrangler.toml
-  await generateWranglerToml(config, projectRoot);
+  generateWranglerToml(config, projectRoot);
 
   // Generate next.config.mjs patches
-  await generateNextConfigPatch(config, projectRoot);
+  generateNextConfigPatch(config, projectRoot);
 
   // Generate package.json scripts
-  await generatePackageScripts(config, projectRoot);
+  generatePackageScripts(config, projectRoot);
 
   // Generate patch scripts
   await generatePatchScripts(config, projectRoot);

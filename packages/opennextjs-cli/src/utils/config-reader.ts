@@ -10,6 +10,19 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 /**
+ * Package.json structure
+ */
+export interface PackageJson {
+  name?: string;
+  version?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+  workspaces?: string[] | { packages?: string[] };
+  [key: string]: unknown;
+}
+
+/**
  * Reads and parses wrangler.toml file
  *
  * @param projectRoot - Root directory of the project
@@ -43,13 +56,13 @@ export function readOpenNextConfig(projectRoot: string = process.cwd()): string 
  * @param projectRoot - Root directory of the project
  * @returns Parsed package.json object or undefined if not found
  */
-export function readPackageJson(projectRoot: string = process.cwd()): Record<string, unknown> | undefined {
+export function readPackageJson(projectRoot: string = process.cwd()): PackageJson | undefined {
   const filePath = join(projectRoot, 'package.json');
   if (!existsSync(filePath)) {
     return undefined;
   }
   try {
-    return JSON.parse(readFileSync(filePath, 'utf-8'));
+    return JSON.parse(readFileSync(filePath, 'utf-8')) as PackageJson;
   } catch {
     return undefined;
   }

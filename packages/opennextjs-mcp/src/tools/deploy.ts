@@ -9,7 +9,12 @@
 /**
  * Handle deploy_to_cloudflare tool call
  */
-export async function handleDeploy(args: { environment?: string; dryRun?: boolean }) {
+export async function handleDeploy(args: { environment?: string; dryRun?: boolean }): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   // Note: Actual deployment requires wrangler CLI execution
   // This is a placeholder that returns instructions
   return {

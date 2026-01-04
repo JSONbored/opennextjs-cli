@@ -9,7 +9,15 @@
 /**
  * Get optimize-cloudflare-config prompt
  */
-export async function getOptimizePrompt() {
+export async function getOptimizePrompt(): Promise<{
+  messages: Array<{
+    role: 'user';
+    content: {
+      type: 'text';
+      text: string;
+    };
+  }>;
+}> {
   return {
     messages: [
       {

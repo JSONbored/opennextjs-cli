@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "enabledManagers": ["npm", "github-actions"],
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["^typescript", "@types/*", "^tsx"],
+      "groupName": "TypeScript tooling",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchPackagePatterns": ["^eslint", "eslint-*", "@typescript-eslint/*", "eslint-plugin-*"],
+      "groupName": "ESLint",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchPackagePatterns": ["@clack/*", "^commander", "^zod"],
+      "groupName": "CLI dependencies",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchPackagePatterns": ["@opennextjs/*", "@cloudflare/*"],
+      "groupName": "OpenNext.js & Cloudflare",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchPackagePatterns": ["@modelcontextprotocol/*"],
+      "groupName": "MCP dependencies",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchPackagePatterns": ["^turbo", "^prettier", "^git-cliff"],
+      "groupName": "Build & tooling",
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "automerge": false,
+      "schedule": ["before 10am on monday"]
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "matchPackageNames": ["@types/node"],
+      "matchUpdateTypes": ["version-update:semver-major"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "schedule": ["before 10am on monday"]
+    }
+  ],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "schedule": ["before 10am on monday"],
+  "timezone": "America/Los_Angeles",
+  "labels": ["dependencies", "automated"],
+  "reviewers": ["JSONbored"],
+  "commitMessagePrefix": "chore",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps"
+}

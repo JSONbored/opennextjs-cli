@@ -35,7 +35,7 @@ export function mcpCommand(): Command {
     .addCommand(
       new Command('setup')
         .description('Set up MCP server configuration')
-        .action(async () => {
+        .action(() => {
           try {
             p.intro('🔧 MCP Server Setup');
 
@@ -53,7 +53,10 @@ export function mcpCommand(): Command {
               if (existsSync(path)) {
                 configPath = path;
                 try {
-                  config = JSON.parse(readFileSync(path, 'utf-8'));
+                  const parsed = JSON.parse(readFileSync(path, 'utf-8')) as { mcpServers?: Record<string, unknown> };
+                  if (typeof parsed === 'object' && parsed !== null) {
+                    config = parsed;
+                  }
                 } catch {
                   config = {};
                 }
@@ -79,7 +82,7 @@ export function mcpCommand(): Command {
               config.mcpServers = {};
             }
 
-            (config.mcpServers as Record<string, unknown>)['opennextjs'] = {
+            config.mcpServers['opennextjs'] = {
               command: 'npx',
               args: ['-y', '@jsonbored/opennextjs-mcp@latest'],
             };

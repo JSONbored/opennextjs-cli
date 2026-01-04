@@ -12,7 +12,13 @@ import { join } from 'path';
 /**
  * Read project structure resource
  */
-export async function readProjectStructure(uri: string) {
+export async function readProjectStructure(uri: string): Promise<{
+  contents: Array<{
+    uri: string;
+    mimeType: string;
+    text: string;
+  }>;
+}> {
   const projectRoot = process.cwd();
   const structure: { files: string[]; directories: string[] } = {
     files: [],

@@ -37,7 +37,7 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint src",
     "format": "prettier --write \"src/**/*.{ts,json}\"",
     "changelog:generate": "git-cliff --config ../../cliff.toml --tag v$(node -p \"require('./package.json').version\")",
     "changelog:preview": "git-cliff --config ../../cliff.toml --latest --unreleased",

@@ -12,7 +12,12 @@ import { detectNextJsProject } from '@jsonbored/opennextjs-cli/utils';
 /**
  * Handle check_health tool call
  */
-export async function handleHealthCheck(_args: unknown) {
+export async function handleHealthCheck(_args: unknown): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   const projectRoot = process.cwd();
   const detection = detectNextJsProject(projectRoot);
   const validation = detection.hasOpenNext ? validateConfiguration(projectRoot) : null;

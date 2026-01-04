@@ -34,7 +34,7 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('login')
         .description('Authenticate with Cloudflare')
-        .action(async () => {
+        .action(() => {
           try {
             p.intro('🔐 Cloudflare Authentication');
 
@@ -54,7 +54,7 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('verify')
         .description('Verify current authentication status')
-        .action(async () => {
+        .action(() => {
           try {
             p.intro('✅ Verifying Authentication');
 
@@ -90,7 +90,7 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('account')
         .description('Show account information')
-        .action(async () => {
+        .action(() => {
           try {
             p.intro('👤 Account Information');
 
@@ -114,7 +114,7 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('logout')
         .description('Clear Cloudflare authentication')
-        .action(async () => {
+        .action(() => {
           try {
             p.intro('🚪 Logging Out');
 

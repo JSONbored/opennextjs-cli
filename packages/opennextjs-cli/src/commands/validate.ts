@@ -55,7 +55,7 @@ This command helps identify issues before deployment and provides
 actionable suggestions for fixing problems.
 `
     )
-    .action(async (options: { json?: boolean }) => {
+    .action((options: { json?: boolean }) => {
       try {
         if (!options.json) {
           p.intro('🔍 Validating Configuration');

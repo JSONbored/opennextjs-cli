@@ -11,7 +11,13 @@ import { readPackageJson } from '@jsonbored/opennextjs-cli/utils';
 /**
  * Read package.json resource
  */
-export async function readPackageJsonResource(uri: string) {
+export async function readPackageJsonResource(uri: string): Promise<{
+  contents: Array<{
+    uri: string;
+    mimeType: string;
+    text: string;
+  }>;
+}> {
   const packageJson = readPackageJson();
   if (!packageJson) {
     throw new Error('package.json not found');

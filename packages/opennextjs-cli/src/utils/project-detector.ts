@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import type { PackageJson } from './config-reader.js';
 import type { ProjectDetectionResult } from '../types/index.js';
 
 /**
@@ -43,16 +44,17 @@ export function detectNextJsProject(cwd: string = process.cwd()): ProjectDetecti
   }
 
   try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
     const dependencies = {
-      ...packageJson.dependencies,
-      ...packageJson.devDependencies,
+      ...(packageJson.dependencies || {}),
+      ...(packageJson.devDependencies || {}),
     };
 
     // Check for Next.js
-    if (dependencies.next) {
+    const nextVersion = dependencies['next'];
+    if (nextVersion) {
       result.isNextJsProject = true;
-      result.nextJsVersion = dependencies.next.replace(/[\^~]/, '');
+      result.nextJsVersion = (nextVersion).replace(/[\^~]/, '');
     }
 
     // Check for OpenNext.js Cloudflare
@@ -83,7 +85,7 @@ export function detectNextJsProject(cwd: string = process.cwd()): ProjectDetecti
     if (result.isNextJsProject && (hasNextConfig || hasAppDir || hasPagesDir)) {
       // Project is confirmed
     }
-  } catch (error) {
+  } catch {
     // If we can't parse package.json, return default result
     return result;
   }
@@ -116,18 +118,18 @@ export function getNextJsVersion(cwd: string = process.cwd()): string | undefine
   }
 
   try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
     const dependencies = {
-      ...packageJson.dependencies,
-      ...packageJson.devDependencies,
+      ...(packageJson.dependencies || {}),
+      ...(packageJson.devDependencies || {}),
     };
 
-    const nextVersion = dependencies.next;
+    const nextVersion = dependencies['next'];
     if (nextVersion) {
       // Remove version prefix (^, ~, etc.)
-      return nextVersion.replace(/[\^~]/, '');
+      return String(nextVersion).replace(/[\^~]/, '');
     }
-  } catch (error) {
+  } catch {
     // Return undefined if we can't parse
   }
 

@@ -11,7 +11,12 @@ import { readWranglerToml, extractEnvironments } from '@jsonbored/opennextjs-cli
 /**
  * Handle list_environments tool call
  */
-export async function handleListEnvironments(_args: unknown) {
+export async function handleListEnvironments(_args: unknown): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   const wranglerToml = readWranglerToml();
   const environments = wranglerToml ? extractEnvironments(wranglerToml) : ['production'];
 

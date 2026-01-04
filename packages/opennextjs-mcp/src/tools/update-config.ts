@@ -9,7 +9,12 @@
 /**
  * Handle update_configuration tool call
  */
-export async function handleUpdateConfig(args: { workerName?: string; cachingStrategy?: string }) {
+export async function handleUpdateConfig(args: { workerName?: string; cachingStrategy?: string }): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   return {
     content: [
       {

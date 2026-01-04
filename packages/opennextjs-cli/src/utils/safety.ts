@@ -48,7 +48,7 @@ export function performSafetyChecks(
       result.errors.push(`Path is not a directory: ${projectRoot}`);
       return result;
     }
-  } catch (error) {
+  } catch {
     result.passed = false;
     result.errors.push(`Cannot access directory: ${projectRoot}`);
     return result;

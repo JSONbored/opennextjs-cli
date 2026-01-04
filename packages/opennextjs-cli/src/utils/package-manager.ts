@@ -55,10 +55,10 @@ export function detectPackageManager(cwd: string = process.cwd()): PackageManage
  * await installDependencies();
  * ```
  */
-export async function installDependencies(
+export function installDependencies(
   cwd: string = process.cwd(),
   packageManager?: PackageManager
-): Promise<void> {
+): void {
   const pm = packageManager || detectPackageManager(cwd);
 
   const commands: Record<PackageManager, string> = {
@@ -90,12 +90,12 @@ export async function installDependencies(
  * await addDependency('@opennextjs/cloudflare', false);
  * ```
  */
-export async function addDependency(
+export function addDependency(
   packageName: string,
   isDev: boolean = false,
   cwd: string = process.cwd(),
   packageManager?: PackageManager
-): Promise<void> {
+): void {
   const pm = packageManager || detectPackageManager(cwd);
 
   const commands: Record<PackageManager, string> = {

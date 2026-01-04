@@ -27,10 +27,10 @@ import { logger } from '../../../utils/logger.js';
  * await generateOpenNextConfig(config, process.cwd());
  * ```
  */
-export async function generateOpenNextConfig(
+export function generateOpenNextConfig(
   config: CloudflareConfig,
   projectRoot: string
-): Promise<void> {
+): void {
   const filePath = join(projectRoot, 'open-next.config.ts');
   const content = generateOpenNextConfigContent(config);
 

@@ -10,9 +10,7 @@ import { Command } from 'commander';
 import * as p from '@clack/prompts';
 import { logger } from '../utils/logger.js';
 import { writeGlobalConfig, writeProjectConfig, type CliConfig } from '../utils/config-manager.js';
-import { promptPackageManager, promptConfirmation } from '../prompts.js';
-import { promptCachingStrategy } from '../prompts.js';
-import type { CachingStrategy } from '../types/index.js';
+import { promptPackageManager, promptConfirmation, promptCachingStrategy } from '../prompts.js';
 
 /**
  * Creates the `setup` command for CLI configuration
@@ -72,7 +70,7 @@ Project-specific settings override global settings.
         // Caching strategy
         logger.section('Default Caching Strategy');
         const cachingStrategy = await promptCachingStrategy();
-        config.defaultCachingStrategy = cachingStrategy as CachingStrategy;
+        config.defaultCachingStrategy = cachingStrategy;
 
         // Auto-backup
         logger.section('Auto-Backup');

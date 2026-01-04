@@ -258,20 +258,20 @@ Troubleshooting:
         if (!detection.hasOpenNext) {
           const installSpinner = p.spinner();
           installSpinner.start('Installing @opennextjs/cloudflare...');
-          await addDependency('@opennextjs/cloudflare', false);
+          addDependency('@opennextjs/cloudflare', false);
           installSpinner.stop('@opennextjs/cloudflare installed');
         }
 
         // Install wrangler as dev dependency
         const wranglerSpinner = p.spinner();
         wranglerSpinner.start('Installing wrangler...');
-        await addDependency('wrangler', true);
+        addDependency('wrangler', true);
         wranglerSpinner.stop('wrangler installed');
 
         // Install all dependencies
         const depsSpinner = p.spinner();
         depsSpinner.start('Installing dependencies...');
-        await installDependencies();
+        installDependencies();
         depsSpinner.stop('Dependencies installed');
 
         logger.success('OpenNext.js Cloudflare has been added to your project!');

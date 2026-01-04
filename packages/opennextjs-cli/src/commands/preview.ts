@@ -58,7 +58,7 @@ What it does:
 Press Ctrl+C to stop the preview server.
 `
     )
-    .action(async (options: { port?: string; env?: string }) => {
+    .action((options: { port?: string; env?: string }) => {
       try {
         p.intro('🔍 Starting Preview Server');
 
@@ -88,7 +88,7 @@ Press Ctrl+C to stop the preview server.
         p.log.info('Starting wrangler dev...');
 
         // Build command
-        let wranglerCommand = 'wrangler';
+        const wranglerCommand = 'wrangler';
         const args: string[] = ['dev'];
 
         if (port) {

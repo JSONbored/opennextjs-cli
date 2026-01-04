@@ -27,10 +27,10 @@ import { logger } from '../../../utils/logger.js';
  * await generateWranglerToml(config, process.cwd());
  * ```
  */
-export async function generateWranglerToml(
+export function generateWranglerToml(
   config: CloudflareConfig,
   projectRoot: string
-): Promise<void> {
+): void {
   const filePath = join(projectRoot, 'wrangler.toml');
   const content = generateWranglerTomlContent(config);
 

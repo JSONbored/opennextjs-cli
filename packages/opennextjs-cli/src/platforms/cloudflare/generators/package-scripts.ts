@@ -29,10 +29,10 @@ import { logger } from '../../../utils/logger.js';
  * await generatePackageScripts(config, process.cwd());
  * ```
  */
-export async function generatePackageScripts(
+export function generatePackageScripts(
   _config: CloudflareConfig,
   projectRoot: string
-): Promise<void> {
+): void {
   const filePath = join(projectRoot, 'package.json');
 
   if (!existsSync(filePath)) {
@@ -40,7 +40,12 @@ export async function generatePackageScripts(
     return;
   }
 
-  const packageJson = JSON.parse(readFileSync(filePath, 'utf-8'));
+  interface PackageJson {
+    scripts?: Record<string, string>;
+    [key: string]: unknown;
+  }
+
+  const packageJson = JSON.parse(readFileSync(filePath, 'utf-8')) as PackageJson;
 
   // Initialize scripts object if it doesn't exist
   if (!packageJson.scripts) {
@@ -48,9 +53,9 @@ export async function generatePackageScripts(
   }
 
   // Add OpenNext.js Cloudflare scripts
-  packageJson.scripts.preview = 'opennextjs-cloudflare build && opennextjs-cloudflare preview';
-  packageJson.scripts.deploy = 'opennextjs-cloudflare build && opennextjs-cloudflare deploy';
-  packageJson.scripts.upload = 'opennextjs-cloudflare build && opennextjs-cloudflare upload';
+  packageJson.scripts['preview'] = 'opennextjs-cloudflare build && opennextjs-cloudflare preview';
+  packageJson.scripts['deploy'] = 'opennextjs-cloudflare build && opennextjs-cloudflare deploy';
+  packageJson.scripts['upload'] = 'opennextjs-cloudflare build && opennextjs-cloudflare upload';
 
   // Add patch scripts (run before build)
   packageJson.scripts['prebuild'] = 'node scripts/patch-nextjs-source.js || true';

@@ -87,13 +87,13 @@ Use --fix to automatically resolve fixable issues.
 
         try {
           const nodeVersion = execSync('node --version', { encoding: 'utf-8' }).trim();
-          const majorVersion = parseInt(nodeVersion.replace('v', '').split('.')[0] || '0', 10);
+          const majorVersion = parseInt((nodeVersion).replace('v', '').split('.')[0] || '0', 10);
           if (majorVersion >= 18) {
             nodeCheck.message = `Node.js ${nodeVersion} (✓)`;
           } else {
             nodeCheck.status = 'fail';
             nodeCheck.message = `Node.js ${nodeVersion} (requires 18+)`;
-            nodeCheck.fix = () => {
+            nodeCheck.fix = (): void => {
               logger.info('Please upgrade Node.js to version 18 or higher');
             };
           }
@@ -126,13 +126,13 @@ Use --fix to automatically resolve fixable issues.
           wranglerCheck.status = 'warning';
           wranglerCheck.message = 'Wrangler CLI not found in PATH';
           if (options.fix) {
-            wranglerCheck.fix = async () => {
+            wranglerCheck.fix = (): void => {
               const pm = detectPackageManager(projectRoot);
-              await addDependency('wrangler', true, projectRoot, pm);
+              addDependency('wrangler', true, projectRoot, pm);
               logger.success('Installed wrangler');
             };
           } else {
-            wranglerCheck.fix = () => {
+            wranglerCheck.fix = (): void => {
               logger.info('Install wrangler: pnpm add -D wrangler');
             };
           }
@@ -159,7 +159,7 @@ Use --fix to automatically resolve fixable issues.
             : 'OpenNext.js Cloudflare not configured',
         };
         if (!detection.hasOpenNext) {
-          openNextCheck.fix = () => {
+          openNextCheck.fix = (): void => {
             logger.info('Run "opennextjs-cli add" to set up OpenNext.js');
           };
         }
@@ -179,12 +179,12 @@ Use --fix to automatically resolve fixable issues.
               status: 'fail',
               message: '@opennextjs/cloudflare not installed',
               fix: options.fix
-                ? async () => {
+                ? (): void => {
                     const pm = detectPackageManager(projectRoot);
-                    await addDependency('@opennextjs/cloudflare', false, projectRoot, pm);
+                    addDependency('@opennextjs/cloudflare', false, projectRoot, pm);
                     logger.success('Installed @opennextjs/cloudflare');
                   }
-                : () => {
+                : (): void => {
                     logger.info('Install: pnpm add @opennextjs/cloudflare');
                   },
             });
@@ -196,12 +196,12 @@ Use --fix to automatically resolve fixable issues.
               status: 'warning',
               message: 'wrangler not installed',
               fix: options.fix
-                ? async () => {
+                ? (): void => {
                     const pm = detectPackageManager(projectRoot);
-                    await addDependency('wrangler', true, projectRoot, pm);
+                    addDependency('wrangler', true, projectRoot, pm);
                     logger.success('Installed wrangler');
                   }
-                : () => {
+                : (): void => {
                     logger.info('Install: pnpm add -D wrangler');
                   },
             });
@@ -219,7 +219,7 @@ Use --fix to automatically resolve fixable issues.
             ...(exists
               ? {}
               : {
-                  fix: () => {
+                  fix: (): void => {
                     logger.info(`Run "opennextjs-cli add" to generate ${file}`);
                   },
                 }),
@@ -239,7 +239,7 @@ Use --fix to automatically resolve fixable issues.
         } catch {
           authCheck.status = 'warning';
           authCheck.message = 'Not authenticated';
-          authCheck.fix = () => {
+          authCheck.fix = (): void => {
             logger.info('Run "opennextjs-cli cloudflare login" to authenticate');
           };
         }
@@ -316,8 +316,8 @@ Use --fix to automatically resolve fixable issues.
         }
 
         p.outro('Health check complete');
-      } catch (error) {
-        logger.error('Failed to run health checks', error);
+      } catch (err) {
+        logger.error('Failed to run health checks', err);
         process.exit(1);
       }
     });

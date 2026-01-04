@@ -51,19 +51,19 @@ const RESOURCES = [
  */
 export function registerAllResources(server: Server): void {
   // Register resources/list handler
-  (server as unknown as { setRequestHandler: (method: string, handler: () => Promise<unknown>) => void }).setRequestHandler('resources/list', async () => {
-    return {
+  (server as unknown as { setRequestHandler: (method: string, handler: () => Promise<unknown>) => void }).setRequestHandler('resources/list', () => {
+    return Promise.resolve({
       resources: RESOURCES.map((resource) => ({
         uri: resource.uri,
         name: resource.name,
         description: resource.description,
         mimeType: resource.mimeType,
       })),
-    };
+    });
   });
 
   // Register resources/read handler
-  (server as unknown as { setRequestHandler: (method: string, handler: (request: { params: { uri: string } }) => Promise<unknown>) => void }).setRequestHandler('resources/read', async (request) => {
+  (server as unknown as { setRequestHandler: (method: string, handler: (request: { params: { uri: string } }) => Promise<unknown>) => void }).setRequestHandler('resources/read', (request) => {
     const params = request.params as { uri: string };
     const uri = params.uri;
     const resource = RESOURCES.find((r) => r.uri === uri);
@@ -72,6 +72,6 @@ export function registerAllResources(server: Server): void {
       throw new Error(`Unknown resource: ${uri}`);
     }
 
-    return await resource.handler(uri);
+    return resource.handler(uri);
   });
 }

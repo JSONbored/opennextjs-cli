@@ -11,7 +11,13 @@ import { readWranglerToml } from '@jsonbored/opennextjs-cli/utils';
 /**
  * Read wrangler.toml resource
  */
-export async function readWranglerConfig(uri: string) {
+export async function readWranglerConfig(uri: string): Promise<{
+  contents: Array<{
+    uri: string;
+    mimeType: string;
+    text: string;
+  }>;
+}> {
   const content = readWranglerToml();
   if (!content) {
     throw new Error('wrangler.toml not found');

@@ -61,8 +61,8 @@ const TOOLS = [
  */
 export function registerAllTools(server: Server): void {
   // Register tools/list handler
-  (server as unknown as { setRequestHandler: (method: string, handler: () => Promise<unknown>) => void }).setRequestHandler('tools/list', async () => {
-    return {
+  (server as unknown as { setRequestHandler: (method: string, handler: () => Promise<unknown>) => void }).setRequestHandler('tools/list', () => {
+    return Promise.resolve({
       tools: TOOLS.map((tool) => ({
         name: tool.name,
         description: tool.description,
@@ -72,11 +72,11 @@ export function registerAllTools(server: Server): void {
           required: [],
         },
       })),
-    };
+    });
   });
 
   // Register tools/call handler
-  (server as unknown as { setRequestHandler: (method: string, handler: (request: { params: { name: string; arguments?: unknown } }) => Promise<unknown>) => void }).setRequestHandler('tools/call', async (request) => {
+  (server as unknown as { setRequestHandler: (method: string, handler: (request: { params: { name: string; arguments?: unknown } }) => Promise<unknown>) => void }).setRequestHandler('tools/call', (request) => {
     const params = request.params as { name: string; arguments?: unknown };
     const toolName = params.name;
     const tool = TOOLS.find((t) => t.name === toolName);
@@ -85,6 +85,6 @@ export function registerAllTools(server: Server): void {
       throw new Error(`Unknown tool: ${toolName}`);
     }
 
-    return await tool.handler(params.arguments || {});
+    return tool.handler(params.arguments || {});
   });
 }

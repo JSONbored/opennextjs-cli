@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
+import type { PackageJson } from './config-reader.js';
 
 /**
  * Monorepo detection result
@@ -58,13 +59,40 @@ export function detectMonorepo(cwd: string = process.cwd()): MonorepoInfo {
       result.workspaceRoot = currentPath;
       try {
         const content = readFileSync(pnpmWorkspacePath, 'utf-8');
-        // Parse workspace patterns (simple extraction)
-        const workspaceMatch = content.match(/packages:\s*\[(.*?)\]/s);
-        if (workspaceMatch && workspaceMatch[1]) {
-          const packages = workspaceMatch[1]
-            .split(',')
-            .map((p) => p.trim().replace(/['"]/g, ''))
-            .filter(Boolean);
+        // Parse workspace patterns - handle both array and YAML list formats
+        const lines = content.split('\n');
+        const packages: string[] = [];
+        let inPackages = false;
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('packages:')) {
+            inPackages = true;
+            // Check if it's inline array format: packages: ['apps/*', 'packages/*']
+            const inlineMatch = line.match(/packages:\s*\[(.*?)\]/);
+            if (inlineMatch && inlineMatch[1]) {
+              const items = inlineMatch[1]
+                .split(',')
+                .map((p) => p.trim().replace(/['"]/g, ''))
+                .filter(Boolean);
+              packages.push(...items);
+              break;
+            }
+          } else if (inPackages) {
+            // Handle YAML list format with dashes
+            if (trimmed.startsWith('-')) {
+              const item = trimmed.replace(/^-\s*/, '').replace(/['"]/g, '').trim();
+              if (item) {
+                packages.push(item);
+              }
+            } else if (trimmed && !trimmed.startsWith('#')) {
+              // End of packages section
+              break;
+            }
+          }
+        }
+        
+        if (packages.length > 0) {
           result.workspaces = packages;
         }
       } catch {
@@ -77,17 +105,19 @@ export function detectMonorepo(cwd: string = process.cwd()): MonorepoInfo {
     const packageJsonPath = join(currentPath, 'package.json');
     if (existsSync(packageJsonPath)) {
       try {
-        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as PackageJson;
         
         // Check for npm/yarn workspaces
-        if (packageJson.workspaces || packageJson.workspaces?.packages) {
+        if (packageJson.workspaces) {
           result.isMonorepo = true;
           result.type = existsSync(join(currentPath, 'yarn.lock')) ? 'yarn' : 'npm';
           result.rootPath = currentPath;
           result.workspaceRoot = currentPath;
           result.workspaces = Array.isArray(packageJson.workspaces)
             ? packageJson.workspaces
-            : packageJson.workspaces?.packages || [];
+            : (typeof packageJson.workspaces === 'object' && packageJson.workspaces !== null && 'packages' in packageJson.workspaces
+                ? (packageJson.workspaces as { packages?: string[] }).packages || []
+                : []);
           return result;
         }
 

@@ -108,7 +108,7 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
           }
         }
 
-        const updates = await checkForUpdates(projectRoot);
+        const updates = checkForUpdates(projectRoot);
         checkSpinner.stop();
 
         // Filter to only requested packages
@@ -171,7 +171,7 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
             const isDev = pkg.name === 'wrangler';
             updateSpinner.start(`Updating ${pkg.name}...`);
 
-            const success = await updatePackage(pkg.name, isDev, projectRoot, packageManager);
+            const success = updatePackage(pkg.name, isDev, projectRoot, packageManager);
             if (success) {
               updateSpinner.stop(`${pkg.name} updated to ${pkg.latest}`);
             } else {
@@ -188,8 +188,8 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
         }
 
         p.outro('Update complete');
-      } catch (error) {
-        logger.error('Failed to update packages', error);
+      } catch (err) {
+        logger.error('Failed to update packages', err);
         process.exit(1);
       }
     });

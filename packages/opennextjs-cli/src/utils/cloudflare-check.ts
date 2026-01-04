@@ -28,7 +28,7 @@ export function checkCloudflareAuth(): boolean {
   try {
     execSync('wrangler whoami', { stdio: 'pipe' });
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -58,7 +58,7 @@ export function verifyCloudflareSetup(): {
   // Check if wrangler is installed
   try {
     execSync('wrangler --version', { stdio: 'pipe' });
-  } catch (error) {
+  } catch {
     return {
       wranglerInstalled: false,
       authenticated: false,

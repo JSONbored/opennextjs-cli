@@ -74,7 +74,7 @@ export function envCommand(): Command {
               const tomlPath = join(projectRoot, 'wrangler.toml');
               const updated = wranglerToml.replace(
                 /^name\s*=/m,
-                `account_id = "${accountId as string}"\nname =`
+                `account_id = "${accountId}"\nname =`
               );
               writeFileSync(tomlPath, updated, 'utf-8');
               logger.success('Updated wrangler.toml with account ID');
@@ -109,7 +109,7 @@ CLOUDFLARE_ACCOUNT_ID=${accountId}
     .addCommand(
       new Command('validate')
         .description('Validate environment variables')
-        .action(async () => {
+        .action(() => {
           try {
             p.intro('✅ Validating Environment Variables');
 
@@ -148,7 +148,7 @@ CLOUDFLARE_ACCOUNT_ID=${accountId}
     .addCommand(
       new Command('list')
         .description('List environment variables')
-        .action(async () => {
+        .action(() => {
           try {
             const projectRoot = process.cwd();
             const devVarsPath = join(projectRoot, '.dev.vars');
@@ -171,7 +171,7 @@ CLOUDFLARE_ACCOUNT_ID=${accountId}
         .argument('<key>', 'Environment variable key')
         .argument('<value>', 'Environment variable value')
         .option('--secret', 'Set as Cloudflare secret (production)')
-        .action(async (key: string, value: string, options: { secret?: boolean }) => {
+        .action((key: string, value: string, options: { secret?: boolean }) => {
           try {
             const projectRoot = process.cwd();
 

@@ -34,15 +34,17 @@
     "type-check": "turbo run type-check"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^22.10.7",
-    "eslint": "^9.18.0",
     "@typescript-eslint/eslint-plugin": "^8.21.0",
     "@typescript-eslint/parser": "^8.21.0",
+    "eslint": "^9.18.0",
     "git-cliff": "^2.5.0",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
+    "turbo": "latest",
     "typescript": "^5.7.3",
-    "turbo": "latest"
+    "typescript-eslint": "^8.51.0"
   },
   "engines": {
     "node": ">=18.0.0",

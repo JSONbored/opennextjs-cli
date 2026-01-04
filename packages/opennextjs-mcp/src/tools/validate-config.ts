@@ -11,7 +11,12 @@ import { validateConfiguration } from '@jsonbored/opennextjs-cli/utils';
 /**
  * Handle validate_configuration tool call
  */
-export async function handleValidateConfig(_args: unknown) {
+export async function handleValidateConfig(_args: unknown): Promise<{
+  content: Array<{
+    type: 'text';
+    text: string;
+  }>;
+}> {
   const projectRoot = process.cwd();
   const result = validateConfiguration(projectRoot);
 

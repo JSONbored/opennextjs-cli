@@ -125,7 +125,7 @@ function validatePackageScripts(projectRoot: string): ValidationCheck {
     };
   }
 
-  const scripts = (packageJson['scripts'] as Record<string, string>) || {};
+  const scripts = packageJson.scripts || {};
   const requiredScripts = ['preview', 'deploy'];
   const missing: string[] = [];
 
@@ -167,8 +167,8 @@ function validateDependencies(projectRoot: string): ValidationCheck {
   }
 
   const deps = {
-    ...((packageJson['dependencies'] as Record<string, string>) || {}),
-    ...((packageJson['devDependencies'] as Record<string, string>) || {}),
+    ...(packageJson.dependencies || {}),
+    ...(packageJson.devDependencies || {}),
   };
 
   const missing: string[] = [];
