@@ -1,0 +1,155 @@
+# Package Release Workflow
+#
+# Automatically releases the opennextjs-cli package to npm when a version tag
+# is pushed. Uses OIDC for npm authentication (no NPM_TOKEN secret required).
+#
+# **What it does:**
+# 1. Builds and tests the package
+# 2. Extracts version from tag (e.g., v1.0.0 → 1.0.0)
+# 3. Verifies package.json version matches tag version
+# 4. Generates changelog automatically using git-cliff
+# 5. Publishes to npm via OIDC
+# 6. Creates GitHub Release with changelog notes
+#
+# **Trigger:**
+# Push a version tag:
+# ```bash
+# git tag v1.0.0
+# git push origin main --tags
+# ```
+#
+# **Prerequisites:**
+# - package.json version must match tag version (e.g., 1.0.0)
+# - npm package must have GitHub Actions configured as trusted publisher
+#   (one-time setup on npmjs.com → Account Settings → Access Tokens → Automation)
+#
+# **OIDC Setup:**
+# - No NPM_TOKEN secret required
+# - Uses GitHub OIDC for automatic authentication
+# - More secure than token-based authentication
+# - Automatic token rotation
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'      # Matches v1.2.3
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: write # Required to create GitHub releases
+      id-token: write # Required for npm publish (OIDC)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Full history for changelog generation
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: packages/opennextjs-cli
+        run: pnpm build
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Extract version from tag (e.g., v1.0.0 → 1.0.0)
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag version: $VERSION"
+
+      - name: Verify package.json version matches tag
+        working-directory: packages/opennextjs-cli
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ Version mismatch: package.json ($PACKAGE_VERSION) != tag ($TAG_VERSION)" >&2
+            exit 1
+          fi
+          echo "✅ Version match: $PACKAGE_VERSION"
+
+      - name: Check if git-cliff is installed
+        id: git-cliff-check
+        run: |
+          if command -v git-cliff &> /dev/null; then
+            echo "installed=true" >> $GITHUB_OUTPUT
+          else
+            echo "installed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install git-cliff (if needed)
+        if: steps.git-cliff-check.outputs.installed == 'false'
+        run: |
+          # Install git-cliff on Ubuntu
+          sudo apt-get update && sudo apt-get install -y git-cliff || \
+            echo "⚠️ git-cliff installation failed, will skip changelog generation" >&2
+
+      - name: Generate changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          
+          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+          
+          # Generate changelog with git-cliff (writes to root CHANGELOG.md)
+          git-cliff \
+            --config cliff.toml \
+            --tag "v$TAG_VERSION" \
+            --verbose || \
+            echo "⚠️ Changelog generation failed, will continue without it" >&2
+          
+          # Extract changelog section for this version
+          if [ -f CHANGELOG.md ]; then
+            # Extract the section for this version
+            awk "/^## \\[$TAG_VERSION\\]/,/^## \\[/ {if (/^## \\[/ && !/^## \\[$TAG_VERSION\\]/) exit; print}" CHANGELOG.md > /tmp/changelog-section.md || \
+              echo "## [$TAG_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+          else
+            echo "## [$TAG_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+            echo "" >> /tmp/changelog-section.md
+            echo "Release $TAG_VERSION" >> /tmp/changelog-section.md
+          fi
+          
+          echo "CHANGELOG_SECTION<<EOF" >> $GITHUB_ENV
+          cat /tmp/changelog-section.md >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Publish to npm
+        working-directory: packages/opennextjs-cli
+        run: |
+          npm publish --access public
+          echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ${{ env.CHANGELOG_SECTION }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

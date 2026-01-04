@@ -1,5 +1,5 @@
 {
-  "name": "opennextjs-cli",
+  "name": "@jsonbored/opennextjs-cli",
   "version": "0.1.0",
   "description": "Interactive CLI/TUI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers",
   "type": "module",
@@ -11,6 +11,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
