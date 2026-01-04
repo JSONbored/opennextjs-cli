@@ -139,65 +139,53 @@ Prerequisites:
           return;
         }
 
-        // Build project
-        logger.section('Build');
+        // Build and deploy using tasks()
+        logger.section('Build & Deploy');
         const packageManager = detectPackageManager(projectRoot);
-        const buildSpinner = p.spinner();
-        buildSpinner.start('Building Next.js project...');
 
-        try {
-          // Build Next.js
-          execSync(`${packageManager} run build`, {
-            cwd: projectRoot,
-            stdio: 'inherit',
-          });
-          buildSpinner.stop('Next.js build complete');
+        await p.tasks([
+          {
+            title: 'Building Next.js project',
+            task: async () => {
+              execSync(`${packageManager} run build`, {
+                cwd: projectRoot,
+                stdio: 'inherit',
+              });
+            },
+          },
+          {
+            title: 'Building OpenNext.js Cloudflare adapter',
+            task: async () => {
+              execSync('npx opennextjs-cloudflare build', {
+                cwd: projectRoot,
+                stdio: 'inherit',
+              });
+            },
+          },
+          {
+            title: 'Deploying to Cloudflare',
+            task: async () => {
+              let deployCommand = 'wrangler deploy';
+              
+              if (options.preview) {
+                deployCommand += ' --preview';
+              } else if (options.env) {
+                deployCommand += ` --env ${options.env}`;
+              }
 
-          // Build OpenNext.js
-          const opennextSpinner = p.spinner();
-          opennextSpinner.start('Building OpenNext.js Cloudflare adapter...');
-          execSync('npx opennextjs-cloudflare build', {
-            cwd: projectRoot,
-            stdio: 'inherit',
-          });
-          opennextSpinner.stop('OpenNext.js build complete');
-        } catch (error) {
-          buildSpinner.stop('Build failed');
-          logger.error('Build failed', error);
-          process.exit(1);
-        }
+              execSync(deployCommand, {
+                cwd: projectRoot,
+                stdio: 'inherit',
+              });
+            },
+          },
+        ]);
 
-        // Deploy
-        logger.section('Deployment');
-        const deploySpinner = p.spinner();
-        deploySpinner.start('Deploying to Cloudflare...');
-
-        try {
-          let deployCommand = 'wrangler deploy';
-          
-          if (options.preview) {
-            deployCommand += ' --preview';
-          } else if (options.env) {
-            deployCommand += ` --env ${options.env}`;
-          }
-
-          execSync(deployCommand, {
-            cwd: projectRoot,
-            stdio: 'inherit',
-          });
-
-          deploySpinner.stop('Deployment complete');
-          logger.success('Successfully deployed to Cloudflare!');
-          
-          p.note(
-            'Your deployment is live! Check the Cloudflare dashboard for the URL.',
-            '🎉 Deployment Successful'
-          );
-        } catch (error) {
-          deploySpinner.stop('Deployment failed');
-          logger.error('Deployment failed', error);
-          process.exit(1);
-        }
+        logger.success('Successfully deployed to Cloudflare!');
+        p.note(
+          'Your deployment is live! Check the Cloudflare dashboard for the URL.',
+          '🎉 Deployment Successful'
+        );
 
         p.outro('Deployment complete');
       } catch (error) {

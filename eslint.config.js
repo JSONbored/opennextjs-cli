@@ -40,6 +40,17 @@ export default tseslint.config(
     },
   },
   {
+    // p.tasks() requires async functions, but some tasks may not use await
+    files: [
+      'packages/opennextjs-cli/src/commands/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+      // Allow missing return types for task functions (they're inferred from p.tasks())
+      '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+  {
     ignores: [
       'node_modules/**',
       'dist/**',

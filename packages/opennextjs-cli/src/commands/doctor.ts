@@ -78,198 +78,226 @@ Use --fix to automatically resolve fixable issues.
         const projectRoot = process.cwd();
         const checks: HealthCheck[] = [];
 
-        // Check Node.js version
-        const nodeCheck: HealthCheck = {
-          name: 'Node.js Version',
-          status: 'pass',
-          message: '',
-        };
+        // Run health checks sequentially using tasks()
+        await p.tasks([
+          {
+            title: 'Checking Node.js version',
+            task: async () => {
+              const nodeCheck: HealthCheck = {
+                name: 'Node.js Version',
+                status: 'pass',
+                message: '',
+              };
 
-        try {
-          const nodeVersion = execSync('node --version', { encoding: 'utf-8' }).trim();
-          const majorVersion = parseInt((nodeVersion).replace('v', '').split('.')[0] || '0', 10);
-          if (majorVersion >= 18) {
-            nodeCheck.message = `Node.js ${nodeVersion} (✓)`;
-          } else {
-            nodeCheck.status = 'fail';
-            nodeCheck.message = `Node.js ${nodeVersion} (requires 18+)`;
-            nodeCheck.fix = (): void => {
-              logger.info('Please upgrade Node.js to version 18 or higher');
-            };
-          }
-        } catch {
-          nodeCheck.status = 'fail';
-          nodeCheck.message = 'Node.js not found';
-        }
+              try {
+                const nodeVersion = execSync('node --version', { encoding: 'utf-8' }).trim();
+                const majorVersion = parseInt((nodeVersion).replace('v', '').split('.')[0] || '0', 10);
+                if (majorVersion >= 18) {
+                  nodeCheck.message = `Node.js ${nodeVersion} (✓)`;
+                } else {
+                  nodeCheck.status = 'fail';
+                  nodeCheck.message = `Node.js ${nodeVersion} (requires 18+)`;
+                  nodeCheck.fix = (): void => {
+                    logger.info('Please upgrade Node.js to version 18 or higher');
+                  };
+                }
+              } catch {
+                nodeCheck.status = 'fail';
+                nodeCheck.message = 'Node.js not found';
+              }
 
-        checks.push(nodeCheck);
+              checks.push(nodeCheck);
+            },
+          },
+          {
+            title: 'Checking package manager',
+            task: async () => {
+              const packageManager = detectPackageManager(projectRoot);
+              checks.push({
+                name: 'Package Manager',
+                status: 'pass',
+                message: `${packageManager} detected`,
+              });
+            },
+          },
+          {
+            title: 'Checking Wrangler CLI',
+            task: async () => {
+              const wranglerCheck: HealthCheck = {
+                name: 'Wrangler CLI',
+                status: 'pass',
+                message: '',
+              };
 
-        // Check package manager
-        const packageManager = detectPackageManager(projectRoot);
-        checks.push({
-          name: 'Package Manager',
-          status: 'pass',
-          message: `${packageManager} detected`,
-        });
-
-        // Check wrangler CLI
-        const wranglerCheck: HealthCheck = {
-          name: 'Wrangler CLI',
-          status: 'pass',
-          message: '',
-        };
-
-        try {
-          execSync('wrangler --version', { stdio: 'ignore' });
-          wranglerCheck.message = 'Wrangler CLI installed';
-        } catch {
-          wranglerCheck.status = 'warning';
-          wranglerCheck.message = 'Wrangler CLI not found in PATH';
-          if (options.fix) {
-            wranglerCheck.fix = (): void => {
-              const pm = detectPackageManager(projectRoot);
-              addDependency('wrangler', true, projectRoot, pm);
-              logger.success('Installed wrangler');
-            };
-          } else {
-            wranglerCheck.fix = (): void => {
-              logger.info('Install wrangler: pnpm add -D wrangler');
-            };
-          }
-        }
-
-        checks.push(wranglerCheck);
-
-        // Check project structure
-        const detection = detectNextJsProject(projectRoot);
-        checks.push({
-          name: 'Next.js Project',
-          status: detection.isNextJsProject ? 'pass' : 'fail',
-          message: detection.isNextJsProject
-            ? `Next.js ${getNextJsVersion(projectRoot) || 'detected'}`
-            : 'Not a Next.js project',
-        });
-
-        // Check OpenNext.js
-        const openNextCheck: HealthCheck = {
-          name: 'OpenNext.js',
-          status: detection.hasOpenNext ? 'pass' : 'fail',
-          message: detection.hasOpenNext
-            ? 'OpenNext.js Cloudflare configured'
-            : 'OpenNext.js Cloudflare not configured',
-        };
-        if (!detection.hasOpenNext) {
-          openNextCheck.fix = (): void => {
-            logger.info('Run "opennextjs-cli add" to set up OpenNext.js');
-          };
-        }
-        checks.push(openNextCheck);
-
-        // Check required dependencies
-        const packageJson = readPackageJson(projectRoot);
-        if (packageJson) {
-          const deps = {
-            ...((packageJson['dependencies'] as Record<string, string>) || {}),
-            ...((packageJson['devDependencies'] as Record<string, string>) || {}),
-          };
-
-          if (!deps['@opennextjs/cloudflare']) {
-            checks.push({
-              name: 'Dependencies',
-              status: 'fail',
-              message: '@opennextjs/cloudflare not installed',
-              fix: options.fix
-                ? (): void => {
-                    const pm = detectPackageManager(projectRoot);
-                    addDependency('@opennextjs/cloudflare', false, projectRoot, pm);
-                    logger.success('Installed @opennextjs/cloudflare');
-                  }
-                : (): void => {
-                    logger.info('Install: pnpm add @opennextjs/cloudflare');
-                  },
-            });
-          }
-
-          if (!deps['wrangler']) {
-            checks.push({
-              name: 'Dependencies',
-              status: 'warning',
-              message: 'wrangler not installed',
-              fix: options.fix
-                ? (): void => {
+              try {
+                execSync('wrangler --version', { stdio: 'ignore' });
+                wranglerCheck.message = 'Wrangler CLI installed';
+              } catch {
+                wranglerCheck.status = 'warning';
+                wranglerCheck.message = 'Wrangler CLI not found in PATH';
+                if (options.fix) {
+                  wranglerCheck.fix = (): void => {
                     const pm = detectPackageManager(projectRoot);
                     addDependency('wrangler', true, projectRoot, pm);
                     logger.success('Installed wrangler');
-                  }
-                : (): void => {
-                    logger.info('Install: pnpm add -D wrangler');
-                  },
-            });
-          }
-        }
+                  };
+                } else {
+                  wranglerCheck.fix = (): void => {
+                    logger.info('Install wrangler: pnpm add -D wrangler');
+                  };
+                }
+              }
 
-        // Check configuration files
-        const configFiles = ['wrangler.toml', 'open-next.config.ts'];
-        for (const file of configFiles) {
-          const exists = existsSync(join(projectRoot, file));
-          checks.push({
-            name: `Config: ${file}`,
-            status: exists ? 'pass' : 'fail',
-            message: exists ? 'Found' : 'Missing',
-            ...(exists
-              ? {}
-              : {
-                  fix: (): void => {
-                    logger.info(`Run "opennextjs-cli add" to generate ${file}`);
-                  },
-                }),
-          });
-        }
+              checks.push(wranglerCheck);
+            },
+          },
+          {
+            title: 'Checking project structure',
+            task: async () => {
+              const detection = detectNextJsProject(projectRoot);
+              checks.push({
+                name: 'Next.js Project',
+                status: detection.isNextJsProject ? 'pass' : 'fail',
+                message: detection.isNextJsProject
+                  ? `Next.js ${getNextJsVersion(projectRoot) || 'detected'}`
+                  : 'Not a Next.js project',
+              });
 
-        // Check Cloudflare authentication
-        const authCheck: HealthCheck = {
-          name: 'Cloudflare Auth',
-          status: 'pass',
-          message: '',
-        };
+              // Check OpenNext.js
+              const openNextCheck: HealthCheck = {
+                name: 'OpenNext.js',
+                status: detection.hasOpenNext ? 'pass' : 'fail',
+                message: detection.hasOpenNext
+                  ? 'OpenNext.js Cloudflare configured'
+                  : 'OpenNext.js Cloudflare not configured',
+              };
+              if (!detection.hasOpenNext) {
+                openNextCheck.fix = (): void => {
+                  logger.info('Run "opennextjs-cli add" to set up OpenNext.js');
+                };
+              }
+              checks.push(openNextCheck);
+            },
+          },
+          {
+            title: 'Checking dependencies',
+            task: async () => {
+              const packageJson = readPackageJson(projectRoot);
+              if (packageJson) {
+                const deps = {
+                  ...((packageJson['dependencies'] as Record<string, string>) || {}),
+                  ...((packageJson['devDependencies'] as Record<string, string>) || {}),
+                };
 
-        try {
-          execSync('wrangler whoami', { stdio: 'ignore' });
-          authCheck.message = 'Authenticated';
-        } catch {
-          authCheck.status = 'warning';
-          authCheck.message = 'Not authenticated';
-          authCheck.fix = (): void => {
-            logger.info('Run "opennextjs-cli cloudflare login" to authenticate');
-          };
-        }
+                if (!deps['@opennextjs/cloudflare']) {
+                  checks.push({
+                    name: 'Dependencies',
+                    status: 'fail',
+                    message: '@opennextjs/cloudflare not installed',
+                    fix: options.fix
+                      ? (): void => {
+                          const pm = detectPackageManager(projectRoot);
+                          addDependency('@opennextjs/cloudflare', false, projectRoot, pm);
+                          logger.success('Installed @opennextjs/cloudflare');
+                        }
+                      : (): void => {
+                          logger.info('Install: pnpm add @opennextjs/cloudflare');
+                        },
+                  });
+                }
 
-        checks.push(authCheck);
+                if (!deps['wrangler']) {
+                  checks.push({
+                    name: 'Dependencies',
+                    status: 'warning',
+                    message: 'wrangler not installed',
+                    fix: options.fix
+                      ? (): void => {
+                          const pm = detectPackageManager(projectRoot);
+                          addDependency('wrangler', true, projectRoot, pm);
+                          logger.success('Installed wrangler');
+                        }
+                      : (): void => {
+                          logger.info('Install: pnpm add -D wrangler');
+                        },
+                  });
+                }
+              }
+            },
+          },
+          {
+            title: 'Checking configuration files',
+            task: async () => {
+              const configFiles = ['wrangler.toml', 'open-next.config.ts'];
+              for (const file of configFiles) {
+                const exists = existsSync(join(projectRoot, file));
+                checks.push({
+                  name: `Config: ${file}`,
+                  status: exists ? 'pass' : 'fail',
+                  message: exists ? 'Found' : 'Missing',
+                  ...(exists
+                    ? {}
+                    : {
+                        fix: (): void => {
+                          logger.info(`Run "opennextjs-cli add" to generate ${file}`);
+                        },
+                      }),
+                });
+              }
+            },
+          },
+          {
+            title: 'Checking Cloudflare authentication',
+            task: async () => {
+              const authCheck: HealthCheck = {
+                name: 'Cloudflare Auth',
+                status: 'pass',
+                message: '',
+              };
 
-        // Run validation
-        if (detection.hasOpenNext) {
-          logger.section('Configuration Validation');
-          const validation = validateConfiguration(projectRoot);
-          if (!validation.valid) {
-            checks.push({
-              name: 'Configuration',
-              status: 'fail',
-              message: `${validation.errors.length} error(s) found`,
-              fix: () => {
-                logger.info('Run "opennextjs-cli validate" for details');
-              },
-            });
-          } else if (validation.warnings.length > 0) {
-            checks.push({
-              name: 'Configuration',
-              status: 'warning',
-              message: `${validation.warnings.length} warning(s) found`,
-              fix: () => {
-                logger.info('Run "opennextjs-cli validate" for details');
-              },
-            });
-          }
-        }
+              try {
+                execSync('wrangler whoami', { stdio: 'ignore' });
+                authCheck.message = 'Authenticated';
+              } catch {
+                authCheck.status = 'warning';
+                authCheck.message = 'Not authenticated';
+                authCheck.fix = (): void => {
+                  logger.info('Run "opennextjs-cli cloudflare login" to authenticate');
+                };
+              }
+
+              checks.push(authCheck);
+            },
+          },
+          {
+            title: 'Validating configuration',
+            task: async () => {
+              const detection = detectNextJsProject(projectRoot);
+              if (detection.hasOpenNext) {
+                const validation = validateConfiguration(projectRoot);
+                if (!validation.valid) {
+                  checks.push({
+                    name: 'Configuration',
+                    status: 'fail',
+                    message: `${validation.errors.length} error(s) found`,
+                    fix: () => {
+                      logger.info('Run "opennextjs-cli validate" for details');
+                    },
+                  });
+                } else if (validation.warnings.length > 0) {
+                  checks.push({
+                    name: 'Configuration',
+                    status: 'warning',
+                    message: `${validation.warnings.length} warning(s) found`,
+                    fix: () => {
+                      logger.info('Run "opennextjs-cli validate" for details');
+                    },
+                  });
+                }
+              }
+            },
+          },
+        ]);
 
         // Display results
         logger.section('Health Check Results');

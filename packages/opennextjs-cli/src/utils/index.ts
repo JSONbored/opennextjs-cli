@@ -20,3 +20,5 @@ export * from './monorepo-detector.js';
 export * from './safety.js';
 export * from './config-manager.js';
 export * from './rollback.js';
+export * from './theme.js';
+export * from './template-selector.js';

@@ -35,60 +35,71 @@ export function mcpCommand(): Command {
     .addCommand(
       new Command('setup')
         .description('Set up MCP server configuration')
-        .action(() => {
+        .action(async () => {
           try {
             p.intro('🔧 MCP Server Setup');
 
-            // Find MCP config file
-            const possiblePaths = [
-              join(process.cwd(), '.mcp.json'),
-              join(process.cwd(), 'mcp.json'),
-              join(homedir(), '.cursor', 'mcp.json'),
-            ];
-
+            // Use tasks() for setup steps
             let configPath: string | undefined;
             let config: { mcpServers?: Record<string, unknown> } = {};
 
-            for (const path of possiblePaths) {
-              if (existsSync(path)) {
-                configPath = path;
-                try {
-                  const parsed = JSON.parse(readFileSync(path, 'utf-8')) as { mcpServers?: Record<string, unknown> };
-                  if (typeof parsed === 'object' && parsed !== null) {
-                    config = parsed;
-                  }
-                } catch {
-                  config = {};
-                }
-                break;
-              }
-            }
+            await p.tasks([
+              {
+                title: 'Finding MCP configuration file',
+                task: async () => {
+                  const possiblePaths = [
+                    join(process.cwd(), '.mcp.json'),
+                    join(process.cwd(), 'mcp.json'),
+                    join(homedir(), '.cursor', 'mcp.json'),
+                  ];
 
-            if (!configPath) {
-              // Use Cursor's default location
-              configPath = join(homedir(), '.cursor', 'mcp.json');
-              const dir = join(homedir(), '.cursor');
-              if (!existsSync(dir)) {
-                logger.info(`Creating directory: ${dir}`);
-                // Directory will be created when we write the file
-              }
-            }
+                  for (const path of possiblePaths) {
+                    if (existsSync(path)) {
+                      configPath = path;
+                      try {
+                        const parsed = JSON.parse(readFileSync(path, 'utf-8')) as { mcpServers?: Record<string, unknown> };
+                        if (typeof parsed === 'object' && parsed !== null) {
+                          config = parsed;
+                        }
+                      } catch {
+                        config = {};
+                      }
+                      break;
+                    }
+                  }
+
+                  if (!configPath) {
+                    // Use Cursor's default location
+                    configPath = join(homedir(), '.cursor', 'mcp.json');
+                    const dir = join(homedir(), '.cursor');
+                    if (!existsSync(dir)) {
+                      logger.info(`Creating directory: ${dir}`);
+                      // Directory will be created when we write the file
+                    }
+                  }
+                },
+              },
+              {
+                title: 'Updating MCP configuration',
+                task: async () => {
+                  // Add or update opennextjs-mcp entry
+                  if (!config.mcpServers) {
+                    config.mcpServers = {};
+                  }
+
+                  config.mcpServers['opennextjs'] = {
+                    command: 'npx',
+                    args: ['-y', '@jsonbored/opennextjs-mcp@latest'],
+                  };
+
+                  // Write config
+                  writeFileSync(configPath!, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+                },
+              },
+            ]);
 
             logger.section('Configuration');
             p.log.info(`Config file: ${configPath}`);
-
-            // Add or update opennextjs-mcp entry
-            if (!config.mcpServers) {
-              config.mcpServers = {};
-            }
-
-            config.mcpServers['opennextjs'] = {
-              command: 'npx',
-              args: ['-y', '@jsonbored/opennextjs-mcp@latest'],
-            };
-
-            // Write config
-            writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
             logger.success('MCP configuration updated');
 
             p.note(

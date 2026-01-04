@@ -21,6 +21,7 @@ import { performSafetyChecks, isSafeToWrite } from '../utils/safety.js';
 import { detectMonorepo, isInMonorepo } from '../utils/monorepo-detector.js';
 import { getRollbackManager } from '../utils/rollback.js';
 import { getMergedConfig } from '../utils/config-manager.js';
+import { createDryRunManager } from '../utils/dry-run.js';
 
 /**
  * Creates the `add` command for adding OpenNext to existing projects
@@ -63,6 +64,10 @@ export function addCommand(): Command {
       '--skip-backup',
       'Skip creating backups of existing configuration files'
     )
+    .option(
+      '--dry-run',
+      'Preview changes without applying them'
+    )
     .addHelpText(
       'after',
       `
@@ -103,17 +108,25 @@ Troubleshooting:
   • Verify Node.js version is 18+ (check with: node --version)
 `
     )
-    .action(async (_options: { 
+    .action(async (options: { 
       yes?: boolean;
       workerName?: string;
       cachingStrategy?: string;
       skipCloudflareCheck?: boolean;
       skipBackup?: boolean;
+      dryRun?: boolean;
     }) => {
       const rollbackManager = getRollbackManager();
       const projectRoot = process.cwd();
+      const dryRun = options.dryRun || false;
+      const dryRunManager = createDryRunManager(dryRun);
 
       try {
+        if (dryRun) {
+          p.intro('🔍 OpenNext.js CLI (Dry Run)');
+          p.note('Running in dry-run mode. No files will be modified.', 'Dry Run Mode');
+        }
+
         // Safety checks
         logger.section('Safety Checks');
         const safetyCheck = performSafetyChecks(projectRoot, 'add');
@@ -132,7 +145,7 @@ Troubleshooting:
             logger.warning(`  • ${warning}`);
           }
           
-          if (!_options.yes) {
+          if (!options.yes) {
             const continueAnyway = await promptConfirmation(
               'Continue despite warnings?',
               false
@@ -151,7 +164,7 @@ Troubleshooting:
           p.log.info(`Type: ${monorepo.type}`);
           p.log.info(`Root: ${monorepo.rootPath}`);
           
-          if (!_options.yes) {
+          if (!options.yes) {
             const confirmed = await promptConfirmation(
               `You're in a ${monorepo.type} monorepo. Continue with setup in this package?`,
               true
@@ -165,8 +178,8 @@ Troubleshooting:
 
         // Load CLI configuration
         const cliConfig = getMergedConfig(projectRoot);
-        if (cliConfig.autoBackup === false && !_options.skipBackup) {
-          _options.skipBackup = true;
+        if (cliConfig.autoBackup === false && !options.skipBackup) {
+          options.skipBackup = true;
         }
 
         logger.section('Project Detection');
@@ -226,7 +239,7 @@ Troubleshooting:
         }
 
         // Backup existing files
-        if (!_options.skipBackup) {
+        if (!options.skipBackup) {
           const filesToBackup = ['wrangler.toml', 'open-next.config.ts', 'next.config.mjs'];
           const backups = backupFiles(filesToBackup, join(projectRoot, '.backup'));
           if (backups.some((b) => b !== undefined)) {
@@ -248,31 +261,65 @@ Troubleshooting:
         
         logger.section('Setup');
 
-        // Generate configuration files
-        const configSpinner = p.spinner();
-        configSpinner.start('Generating configuration files...');
-        await generateCloudflareConfig(config, process.cwd());
-        configSpinner.stop('Configuration files generated');
+        // Track files that would be created
+        if (dryRun) {
+          dryRunManager.track({ type: 'create', path: 'open-next.config.ts' });
+          dryRunManager.track({ type: 'create', path: 'wrangler.toml' });
+          dryRunManager.track({ type: 'update', path: 'next.config.mjs' });
+          dryRunManager.track({ type: 'update', path: 'package.json' });
+          dryRunManager.track({ type: 'create', path: 'scripts/patch-nextjs-source.js' });
+          dryRunManager.track({ type: 'create', path: 'scripts/patch-init.js' });
+          
+          dryRunManager.displayPreview();
+          
+          p.note(
+            'Dependencies that would be installed:\n' +
+            '  • @opennextjs/cloudflare\n' +
+            '  • wrangler (dev)',
+            'Dry Run Preview'
+          );
+          
+          p.outro('Dry run complete. Run without --dry-run to apply changes.');
+          return;
+        }
+
+        // Use tasks() for sequential operations
+        const tasks = [
+          {
+            title: 'Generating configuration files',
+            task: async () => {
+              await generateCloudflareConfig(config, process.cwd());
+            },
+          },
+        ];
 
         // Install OpenNext.js Cloudflare if not already installed
         if (!detection.hasOpenNext) {
-          const installSpinner = p.spinner();
-          installSpinner.start('Installing @opennextjs/cloudflare...');
-          addDependency('@opennextjs/cloudflare', false);
-          installSpinner.stop('@opennextjs/cloudflare installed');
+          tasks.push({
+            title: 'Installing @opennextjs/cloudflare',
+            task: async () => {
+              addDependency('@opennextjs/cloudflare', false);
+            },
+          });
         }
 
-        // Install wrangler as dev dependency
-        const wranglerSpinner = p.spinner();
-        wranglerSpinner.start('Installing wrangler...');
-        addDependency('wrangler', true);
-        wranglerSpinner.stop('wrangler installed');
+        // Always install wrangler
+        tasks.push(
+          {
+            title: 'Installing wrangler',
+            task: async () => {
+              addDependency('wrangler', true);
+            },
+          },
+          {
+            title: 'Installing dependencies',
+            task: async () => {
+              installDependencies();
+            },
+          }
+        );
 
-        // Install all dependencies
-        const depsSpinner = p.spinner();
-        depsSpinner.start('Installing dependencies...');
-        installDependencies();
-        depsSpinner.stop('Dependencies installed');
+        await p.tasks(tasks);
 
         logger.success('OpenNext.js Cloudflare has been added to your project!');
         p.note(

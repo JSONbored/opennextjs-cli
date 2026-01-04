@@ -20,6 +20,7 @@ export interface CliConfig {
   autoBackup?: boolean;
   confirmDestructive?: boolean;
   verbose?: boolean;
+  theme?: 'default' | 'minimal' | 'colorful' | 'high-contrast';
   projectDefaults?: {
     workerName?: string;
     accountId?: string;

@@ -20,8 +20,11 @@ import { cloudflareCommand } from './commands/cloudflare.js';
 import { doctorCommand } from './commands/doctor.js';
 import { mcpCommand } from './commands/mcp.js';
 import { setupCommand } from './commands/setup.js';
+import { migrateCommand } from './commands/migrate.js';
+import { completionCommand } from './commands/completion.js';
 import { setLogLevel } from './utils/logger.js';
 import { getMergedConfig } from './utils/config-manager.js';
+import { applyTheme } from './utils/theme.js';
 
 /**
  * Main CLI program instance
@@ -51,8 +54,13 @@ program
   .hook('preAction', (thisCommand) => {
     const opts = thisCommand.opts();
     
-    // Load config for default verbose setting
+    // Load config for default settings
     const config = getMergedConfig();
+    
+    // Apply theme from config
+    if (config.theme) {
+      applyTheme(config.theme);
+    }
     
     // Set log level from flags or config
     if (opts['debug']) {
@@ -97,3 +105,5 @@ program.addCommand(cloudflareCommand());
 program.addCommand(doctorCommand());
 program.addCommand(mcpCommand());
 program.addCommand(setupCommand());
+program.addCommand(migrateCommand());
+program.addCommand(completionCommand());

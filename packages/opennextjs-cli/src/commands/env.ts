@@ -51,21 +51,31 @@ export function envCommand(): Command {
             }
 
             logger.section('Cloudflare Account');
-            const accountId = await p.text({
-              message: 'Cloudflare Account ID',
-              placeholder: 'Enter your Cloudflare account ID',
-              validate: (input) => {
-                if (!input || input.trim().length === 0) {
-                  return 'Account ID is required';
-                }
-                return;
+            const credentials = await p.group(
+              {
+                accountId: () => p.text({
+                  message: 'Cloudflare Account ID',
+                  placeholder: 'Enter your Cloudflare account ID',
+                  validate: (input) => {
+                    if (!input || input.trim().length === 0) {
+                      return 'Account ID is required';
+                    }
+                    return;
+                  },
+                }),
+                apiToken: () => p.password({
+                  message: 'Cloudflare API Token (optional, for secrets)',
+                }),
               },
-            });
+              {
+                onCancel: () => {
+                  p.cancel('Operation cancelled.');
+                  process.exit(0);
+                },
+              }
+            );
 
-            if (p.isCancel(accountId)) {
-              p.cancel('Operation cancelled.');
-              process.exit(0);
-            }
+            const accountId = credentials.accountId;
 
             // Update wrangler.toml with account_id if not present
             const wranglerToml = readWranglerToml(projectRoot);

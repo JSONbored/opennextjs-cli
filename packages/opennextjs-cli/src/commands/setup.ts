@@ -11,6 +11,7 @@ import * as p from '@clack/prompts';
 import { logger } from '../utils/logger.js';
 import { writeGlobalConfig, writeProjectConfig, type CliConfig } from '../utils/config-manager.js';
 import { promptPackageManager, promptConfirmation, promptCachingStrategy } from '../prompts.js';
+import { getAvailableThemes, applyTheme } from '../utils/theme.js';
 
 /**
  * Creates the `setup` command for CLI configuration
@@ -60,40 +61,49 @@ Project-specific settings override global settings.
       try {
         p.intro('⚙️  CLI Configuration Setup');
 
-        const config: CliConfig = {};
-
-        // Package manager
-        logger.section('Default Package Manager');
-        const packageManager = await promptPackageManager();
-        config.defaultPackageManager = packageManager;
-
-        // Caching strategy
-        logger.section('Default Caching Strategy');
-        const cachingStrategy = await promptCachingStrategy();
-        config.defaultCachingStrategy = cachingStrategy;
-
-        // Auto-backup
-        logger.section('Auto-Backup');
-        const autoBackup = await promptConfirmation(
-          'Automatically backup files before making changes?',
-          true
+        // Group all configuration prompts
+        logger.section('Configuration');
+        const configValues = await p.group(
+          {
+            packageManager: () => promptPackageManager(),
+            cachingStrategy: () => promptCachingStrategy(),
+            theme: () => p.select({
+              message: 'Select CLI theme:',
+              options: getAvailableThemes(),
+              initialValue: 'default',
+            }),
+            autoBackup: () => promptConfirmation(
+              'Automatically backup files before making changes?',
+              true
+            ),
+            confirmDestructive: () => promptConfirmation(
+              'Always confirm before destructive operations?',
+              true
+            ),
+            verbose: () => promptConfirmation(
+              'Enable verbose logging by default?',
+              false
+            ),
+          },
+          {
+            onCancel: () => {
+              p.cancel('Operation cancelled.');
+              process.exit(0);
+            },
+          }
         );
-        config.autoBackup = autoBackup;
 
-        // Confirm destructive operations
-        logger.section('Safety Settings');
-        const confirmDestructive = await promptConfirmation(
-          'Always confirm before destructive operations?',
-          true
-        );
-        config.confirmDestructive = confirmDestructive;
+        // Apply theme immediately
+        applyTheme(configValues.theme as 'default' | 'minimal' | 'colorful' | 'high-contrast');
 
-        // Verbose mode
-        const verbose = await promptConfirmation(
-          'Enable verbose logging by default?',
-          false
-        );
-        config.verbose = verbose;
+        const config: CliConfig = {
+          defaultPackageManager: configValues.packageManager,
+          defaultCachingStrategy: configValues.cachingStrategy,
+          theme: configValues.theme as 'default' | 'minimal' | 'colorful' | 'high-contrast',
+          autoBackup: configValues.autoBackup,
+          confirmDestructive: configValues.confirmDestructive,
+          verbose: configValues.verbose,
+        };
 
         // Save configuration
         logger.section('Saving Configuration');

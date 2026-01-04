@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -128,4 +128,18 @@ export function extractEnvironments(tomlContent: string): string[] {
   }
   
   return environments;
+}
+
+/**
+ * Writes package.json file
+ *
+ * @param projectRoot - Root directory of the project
+ * @param packageJson - Package.json object to write
+ */
+export function writePackageJson(
+  projectRoot: string = process.cwd(),
+  packageJson: PackageJson
+): void {
+  const filePath = join(projectRoot, 'package.json');
+  writeFileSync(filePath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
 }

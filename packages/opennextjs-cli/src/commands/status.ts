@@ -122,10 +122,10 @@ Use this command to quickly check your project setup and configuration.
                     if (wranglerPath.endsWith('.json') || wranglerPath.endsWith('.jsonc')) {
                       try {
                         // Remove comments from JSONC (both // and /* */ style)
-                        let jsonContent = wranglerContent
+                        const jsonContent = wranglerContent
                           .replace(/\/\/.*$/gm, '') // Remove // comments
                           .replace(/\/\*[\s\S]*?\*\//g, ''); // Remove /* */ comments
-                        const config = JSON.parse(jsonContent);
+                        const config = JSON.parse(jsonContent) as { name?: string };
                         workerName = typeof config.name === 'string' ? config.name : undefined;
                       } catch {
                         // If parsing fails, try regex extraction
@@ -180,10 +180,10 @@ Use this command to quickly check your project setup and configuration.
                 if (wranglerPath.endsWith('.json') || wranglerPath.endsWith('.jsonc')) {
                   try {
                     // Remove comments from JSONC (both // and /* */ style)
-                    let jsonContent = wranglerContent
+                    const jsonContent = wranglerContent
                       .replace(/\/\/.*$/gm, '') // Remove // comments
                       .replace(/\/\*[\s\S]*?\*\//g, ''); // Remove /* */ comments
-                    const config = JSON.parse(jsonContent);
+                    const config = JSON.parse(jsonContent) as { name?: string };
                     workerName = typeof config.name === 'string' ? config.name : undefined;
                   } catch {
                     // If parsing fails, try regex extraction

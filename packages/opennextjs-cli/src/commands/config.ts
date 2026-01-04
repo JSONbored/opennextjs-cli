@@ -178,12 +178,16 @@ Note:
           nextJsVersion: '15.1.0', // TODO: Detect from package.json
         });
 
-        // Generate updated configuration files
+        // Generate updated configuration files using tasks()
         logger.section('Updating Files');
-        const configSpinner = p.spinner();
-        configSpinner.start('Updating configuration files...');
-        await generateCloudflareConfig(cloudflareConfig, process.cwd());
-        configSpinner.stop('Configuration files updated');
+        await p.tasks([
+          {
+            title: 'Updating configuration files',
+            task: async () => {
+              await generateCloudflareConfig(cloudflareConfig, process.cwd());
+            },
+          },
+        ]);
 
         // Clear rollback manager on success
         rollbackManager.clear();

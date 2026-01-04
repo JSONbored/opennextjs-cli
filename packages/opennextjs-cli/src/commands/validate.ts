@@ -55,14 +55,57 @@ This command helps identify issues before deployment and provides
 actionable suggestions for fixing problems.
 `
     )
-    .action((options: { json?: boolean }) => {
+    .action(async (options: { json?: boolean }) => {
       try {
         if (!options.json) {
           p.intro('🔍 Validating Configuration');
         }
 
         const projectRoot = process.cwd();
-        const result = validateConfiguration(projectRoot);
+        const result: ReturnType<typeof validateConfiguration> = validateConfiguration(projectRoot);
+
+        // Use tasks() for sequential validation steps
+        if (!options.json) {
+          await p.tasks([
+            {
+              title: 'Validating project structure',
+              task: async () => {
+                // Validation happens synchronously but we show progress
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              },
+            },
+            {
+              title: 'Validating wrangler.toml',
+              task: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              },
+            },
+            {
+              title: 'Validating open-next.config.ts',
+              task: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              },
+            },
+            {
+              title: 'Checking package.json scripts',
+              task: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              },
+            },
+            {
+              title: 'Checking dependencies',
+              task: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              },
+            },
+            {
+              title: 'Validating Cloudflare setup',
+              task: async () => {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              },
+            },
+          ]);
+        }
 
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));

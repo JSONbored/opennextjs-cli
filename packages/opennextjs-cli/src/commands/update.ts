@@ -87,9 +87,7 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
         }
 
         logger.section('Checking for Updates');
-        const checkSpinner = p.spinner();
-        checkSpinner.start('Fetching latest versions...');
-
+        
         const packageJson = readPackageJson(projectRoot);
         const deps = {
           ...((packageJson?.['dependencies'] as Record<string, string>) || {}),
@@ -108,8 +106,17 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
           }
         }
 
-        const updates = checkForUpdates(projectRoot);
-        checkSpinner.stop();
+        // Use tasks() for checking updates
+        let updates: ReturnType<typeof checkForUpdates> = [];
+        await p.tasks([
+          {
+            title: 'Fetching latest versions',
+            task: async () => {
+              // This is synchronous but we wrap it in async for tasks()
+              updates = checkForUpdates(projectRoot);
+            },
+          },
+        ]);
 
         // Filter to only requested packages
         const relevantUpdates = updates.filter((u) => packagesToCheck.includes(u.name));
@@ -162,23 +169,24 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
             return;
           }
 
-          // Update packages
+          // Update packages using tasks()
           logger.section('Updating Packages');
           const packageManager = detectPackageManager(projectRoot);
-          const updateSpinner = p.spinner();
 
-          for (const pkg of needsUpdate) {
-            const isDev = pkg.name === 'wrangler';
-            updateSpinner.start(`Updating ${pkg.name}...`);
-
-            const success = updatePackage(pkg.name, isDev, projectRoot, packageManager);
-            if (success) {
-              updateSpinner.stop(`${pkg.name} updated to ${pkg.latest}`);
-            } else {
-              updateSpinner.stop(`Failed to update ${pkg.name}`);
-              logger.error(`Failed to update ${pkg.name}`);
-            }
-          }
+          await p.tasks(
+            needsUpdate.map((pkg) => {
+              const isDev = pkg.name === 'wrangler';
+              return {
+                title: `Updating ${pkg.name} to ${pkg.latest}`,
+                task: async () => {
+                  const success = updatePackage(pkg.name, isDev, projectRoot, packageManager);
+                  if (!success) {
+                    throw new Error(`Failed to update ${pkg.name}`);
+                  }
+                },
+              };
+            })
+          );
 
           logger.success('Updates complete!');
           p.note(

@@ -15,6 +15,8 @@ import { addDependency, installDependencies } from '../utils/package-manager.js'
 import { logger } from '../utils/logger.js';
 import { isGitInitialized, isGitAvailable, initializeGit, createGitignore, createInitialCommit } from '../utils/git.js';
 import { promptConfirmation } from '../prompts.js';
+import { promptTemplateSelection } from '../utils/template-selector.js';
+import { applyTemplates } from '../utils/templates.js';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
@@ -61,6 +63,10 @@ export function initCommand(): Command {
       'Caching strategy: static-assets, r2, r2-do-queue, r2-do-queue-tag-cache',
       'r2'
     )
+    .option(
+      '--template <templates>',
+      'Comma-separated list of templates to apply (e.g., "with-auth,with-database")'
+    )
     .addHelpText(
       'after',
       `
@@ -69,6 +75,7 @@ Examples:
   opennextjs-cli init my-app              Create project named "my-app"
   opennextjs-cli init --yes               Use all defaults, no prompts
   opennextjs-cli init --worker-name my-worker  Custom worker name
+  opennextjs-cli init --template with-auth,with-database  Apply templates
 
 What it does:
   1. Creates a new Next.js project with TypeScript and Tailwind CSS
@@ -91,22 +98,48 @@ Next Steps:
   pnpm deploy     # Deploy to Cloudflare
 `
     )
-    .action(async (projectName: string | undefined, _options: { 
+    .action(async (projectName: string | undefined, options: { 
       yes?: boolean;
       nextVersion?: string;
       workerName?: string;
       cachingStrategy?: string;
+      template?: string;
     }) => {
       try {
         p.intro('🚀 OpenNext.js CLI');
         logger.section('Project Initialization');
 
-        // Get project name
-        const finalProjectName = projectName || (await promptProjectName());
+        // Parse template option
+        let selectedTemplates: string[] = ['basic'];
+        if (options.template) {
+          selectedTemplates = options.template.split(',').map(t => t.trim());
+        }
 
-        // Get package manager
-        logger.section('Package Manager');
-        const selectedPackageManager = await promptPackageManager();
+        // Group initial prompts
+        logger.section('Project Setup');
+        const initialConfig = await p.group(
+          {
+            projectName: () => promptProjectName(projectName),
+            packageManager: () => promptPackageManager(),
+            templates: () => {
+              // Only prompt if template not provided via flag
+              if (!options.template && !options.yes) {
+                return promptTemplateSelection('Select project templates:', ['basic']);
+              }
+              return Promise.resolve(selectedTemplates);
+            },
+          },
+          {
+            onCancel: () => {
+              p.cancel('Operation cancelled.');
+              process.exit(0);
+            },
+          }
+        );
+
+        const finalProjectName = initialConfig.projectName;
+        const selectedPackageManager = initialConfig.packageManager;
+        selectedTemplates = initialConfig.templates;
 
         // Create project directory
         const projectPath = join(process.cwd(), finalProjectName);
@@ -114,49 +147,68 @@ Next Steps:
           mkdirSync(projectPath, { recursive: true });
         }
 
-        // Initialize Next.js project
-        const nextSpinner = p.spinner();
-        nextSpinner.start('Creating Next.js project...');
-        execSync(`npx create-next-app@latest ${finalProjectName} --typescript --tailwind --app --no-src-dir --import-alias "@/*"`, {
-          stdio: 'inherit',
-          cwd: projectPath !== process.cwd() ? process.cwd() : undefined,
-        });
-        nextSpinner.stop('Next.js project created');
-
         // Change to project directory
         process.chdir(projectPath);
 
-        // Prompt for Cloudflare configuration
+        // Prompt for Cloudflare configuration (grouped)
         logger.section('Cloudflare Configuration');
         const config = await promptCloudflareConfig({
           workerName: finalProjectName,
           nextJsVersion: '15.1.0',
         });
 
-        // Generate configuration files
-        logger.section('Setup');
-        const configSpinner = p.spinner();
-        configSpinner.start('Generating configuration files...');
-        await generateCloudflareConfig(config, projectPath);
-        configSpinner.stop('Configuration files generated');
+        // Build tasks array
+        const tasks = [
+          {
+            title: 'Creating Next.js project',
+            task: async () => {
+              execSync(`npx create-next-app@latest ${finalProjectName} --typescript --tailwind --app --no-src-dir --import-alias "@/*"`, {
+                stdio: 'inherit',
+                cwd: projectPath !== process.cwd() ? process.cwd() : undefined,
+              });
+            },
+          },
+          {
+            title: 'Generating configuration files',
+            task: async () => {
+              await generateCloudflareConfig(config, projectPath);
+            },
+          },
+          {
+            title: 'Installing @opennextjs/cloudflare',
+            task: async () => {
+              addDependency('@opennextjs/cloudflare', false, projectPath, selectedPackageManager);
+            },
+          },
+          {
+            title: 'Installing wrangler',
+            task: async () => {
+              addDependency('wrangler', true, projectPath, selectedPackageManager);
+            },
+          },
+          {
+            title: 'Installing dependencies',
+            task: async () => {
+              installDependencies(projectPath, selectedPackageManager);
+            },
+          },
+        ];
 
-        // Install OpenNext.js Cloudflare
-        const opennextSpinner = p.spinner();
-        opennextSpinner.start('Installing @opennextjs/cloudflare...');
-        addDependency('@opennextjs/cloudflare', false, projectPath, selectedPackageManager);
-        opennextSpinner.stop('@opennextjs/cloudflare installed');
+        // Add template task if templates are selected (and not just basic)
+        const hasNonBasicTemplates = selectedTemplates.length > 0 && 
+          (selectedTemplates.length > 1 || !selectedTemplates.includes('basic'));
+        
+        if (hasNonBasicTemplates) {
+          tasks.push({
+            title: 'Applying templates',
+            task: async () => {
+              await applyTemplates(selectedTemplates, projectPath, selectedPackageManager);
+            },
+          });
+        }
 
-        // Install wrangler as dev dependency
-        const wranglerSpinner = p.spinner();
-        wranglerSpinner.start('Installing wrangler...');
-        addDependency('wrangler', true, projectPath, selectedPackageManager);
-        wranglerSpinner.stop('wrangler installed');
-
-        // Install all dependencies
-        const depsSpinner = p.spinner();
-        depsSpinner.start('Installing dependencies...');
-        installDependencies(projectPath, selectedPackageManager);
-        depsSpinner.stop('Dependencies installed');
+        // Use tasks() for sequential operations
+        await p.tasks(tasks);
 
         // Git initialization
         if (isGitAvailable() && !isGitInitialized(projectPath)) {
