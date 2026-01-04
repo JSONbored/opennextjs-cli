@@ -2,11 +2,13 @@
  * Cloudflare Platform Prompts
  *
  * Interactive prompts specific to Cloudflare platform configuration.
+ * Uses @clack/prompts (same as next-forge).
  *
  * @packageDocumentation
  */
 
-import inquirer from 'inquirer';
+import * as p from '@clack/prompts';
+import { cancel, isCancel } from '@clack/prompts';
 import type { CloudflareConfig } from '../../schemas/config.js';
 import {
   promptCachingStrategy,
@@ -18,20 +20,6 @@ import {
 
 /**
  * Prompts for complete Cloudflare configuration
- *
- * @description
- * Guides user through all Cloudflare-specific configuration options.
- *
- * @param defaults - Optional default values
- * @returns Complete Cloudflare configuration
- *
- * @example
- * ```typescript
- * const config = await promptCloudflareConfig({
- *   workerName: 'my-worker',
- *   nextJsVersion: '15.1.0'
- * });
- * ```
  */
 export async function promptCloudflareConfig(defaults?: {
   workerName?: string;
@@ -55,23 +43,25 @@ export async function promptCloudflareConfig(defaults?: {
     }
   }
 
-  const { imageOptimization } = await inquirer.prompt<{ imageOptimization: boolean }>([
-    {
-      type: 'confirm',
-      name: 'imageOptimization',
-      message: 'Enable Cloudflare Images optimization?',
-      default: false,
-    },
-  ]);
+  const imageOptimization = await p.confirm({
+    message: 'Enable Cloudflare Images optimization?',
+    initialValue: false,
+  });
 
-  const { analyticsEngine } = await inquirer.prompt<{ analyticsEngine: boolean }>([
-    {
-      type: 'confirm',
-      name: 'analyticsEngine',
-      message: 'Enable Cloudflare Analytics Engine?',
-      default: false,
-    },
-  ]);
+  if (isCancel(imageOptimization)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
+
+  const analyticsEngine = await p.confirm({
+    message: 'Enable Cloudflare Analytics Engine?',
+    initialValue: false,
+  });
+
+  if (isCancel(analyticsEngine)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
 
   // Prompt for environments
   const environments = await promptEnvironments();
@@ -83,8 +73,8 @@ export async function promptCloudflareConfig(defaults?: {
     workerName,
     cachingStrategy,
     database,
-    imageOptimization,
-    analyticsEngine,
+    imageOptimization: imageOptimization as boolean,
+    analyticsEngine: analyticsEngine as boolean,
     environments,
     nextJsVersion,
     compatibilityDate,
@@ -93,31 +83,20 @@ export async function promptCloudflareConfig(defaults?: {
 
 /**
  * Prompts for environment configurations
- *
- * @description
- * Asks user to configure development and production environments.
- *
- * @returns Array of environment configurations
- *
- * @example
- * ```typescript
- * const envs = await promptEnvironments();
- * ```
  */
 async function promptEnvironments(): Promise<CloudflareConfig['environments']> {
   const environments: CloudflareConfig['environments'] = [];
 
   // Always include development environment
-  const { devObservability } = await inquirer.prompt<{
-    devObservability: boolean;
-  }>([
-    {
-      type: 'confirm',
-      name: 'devObservability',
-      message: 'Enable full observability for development? (recommended)',
-      default: true,
-    },
-  ]);
+  const devObservability = await p.confirm({
+    message: 'Enable full observability for development? (recommended)',
+    initialValue: true,
+  });
+
+  if (isCancel(devObservability)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
 
   environments.push({
     name: 'development',
@@ -131,63 +110,71 @@ async function promptEnvironments(): Promise<CloudflareConfig['environments']> {
   });
 
   // Ask about production environment
-  const { hasProduction } = await inquirer.prompt<{ hasProduction: boolean }>([
-    {
-      type: 'confirm',
-      name: 'hasProduction',
-      message: 'Configure production environment?',
-      default: true,
-    },
-  ]);
+  const hasProduction = await p.confirm({
+    message: 'Configure production environment?',
+    initialValue: true,
+  });
+
+  if (isCancel(hasProduction)) {
+    cancel('Operation cancelled.');
+    process.exit(0);
+  }
 
   if (hasProduction) {
-    const { prodLogSampling } = await inquirer.prompt<{ prodLogSampling: number }>([
-      {
-        type: 'number',
-        name: 'prodLogSampling',
-        message: 'Production log sampling rate (0-1):',
-        default: 0.1,
-        validate: (input: number) => {
-          if (input < 0 || input > 1) {
-            return 'Sampling rate must be between 0 and 1';
-          }
-          return true;
-        },
+    const prodLogSampling = await p.text({
+      message: 'Production log sampling rate (0-1):',
+      placeholder: '0.1',
+      defaultValue: '0.1',
+      validate: (input: string) => {
+        const value = parseFloat(input);
+        if (isNaN(value) || value < 0 || value > 1) {
+          return 'Sampling rate must be between 0 and 1';
+        }
+        return;
       },
-    ]);
+    });
 
-    const { prodTraceSampling } = await inquirer.prompt<{ prodTraceSampling: number }>([
-      {
-        type: 'number',
-        name: 'prodTraceSampling',
-        message: 'Production trace sampling rate (0-1):',
-        default: 0.1,
-        validate: (input: number) => {
-          if (input < 0 || input > 1) {
-            return 'Sampling rate must be between 0 and 1';
-          }
-          return true;
-        },
-      },
-    ]);
+    if (isCancel(prodLogSampling)) {
+      cancel('Operation cancelled.');
+      process.exit(0);
+    }
 
-    const { prodLogpush } = await inquirer.prompt<{ prodLogpush: boolean }>([
-      {
-        type: 'confirm',
-        name: 'prodLogpush',
-        message: 'Enable Logpush for production?',
-        default: false,
+    const prodTraceSampling = await p.text({
+      message: 'Production trace sampling rate (0-1):',
+      placeholder: '0.1',
+      defaultValue: '0.1',
+      validate: (input: string) => {
+        const value = parseFloat(input);
+        if (isNaN(value) || value < 0 || value > 1) {
+          return 'Sampling rate must be between 0 and 1';
+        }
+        return;
       },
-    ]);
+    });
+
+    if (isCancel(prodTraceSampling)) {
+      cancel('Operation cancelled.');
+      process.exit(0);
+    }
+
+    const prodLogpush = await p.confirm({
+      message: 'Enable Logpush for production?',
+      initialValue: false,
+    });
+
+    if (isCancel(prodLogpush)) {
+      cancel('Operation cancelled.');
+      process.exit(0);
+    }
 
     environments.push({
       name: 'production',
       observability: {
         logs: true,
-        logSamplingRate: prodLogSampling,
+        logSamplingRate: parseFloat(prodLogSampling as string),
         traces: true,
-        traceSamplingRate: prodTraceSampling,
-        logpush: prodLogpush,
+        traceSamplingRate: parseFloat(prodTraceSampling as string),
+        logpush: prodLogpush as boolean,
       },
     });
   }

@@ -1,102 +1,88 @@
 /**
  * Logger Utility
  *
- * Provides colored terminal output for CLI messages.
+ * Provides beautiful, modern terminal output using @clack/prompts (same as next-forge).
  *
  * @packageDocumentation
  */
 
-import chalk from 'chalk';
+import * as p from '@clack/prompts';
 
 /**
- * Log levels for different types of messages
- */
-export enum LogLevel {
-  INFO = 'info',
-  SUCCESS = 'success',
-  WARNING = 'warning',
-  ERROR = 'error',
-}
-
-/**
- * Logger class for colored terminal output
+ * Logger class using @clack/prompts
  *
  * @description
- * Provides methods for logging messages with appropriate colors
- * and formatting for the CLI interface.
- *
- * @example
- * ```typescript
- * import { logger } from './utils/logger.js';
- * logger.info('Starting setup...');
- * logger.success('Setup complete!');
- * logger.warning('This is experimental');
- * logger.error('Something went wrong');
- * ```
+ * Provides methods for logging messages using @clack/prompts, matching next-forge's implementation.
  */
 export class Logger {
   /**
    * Log an informational message
-   *
-   * @param message - Message to display
-   * @param data - Optional additional data to display
    */
   info(message: string, data?: unknown): void {
-    console.log(chalk.blue('ℹ'), message);
+    p.log.info(message);
     if (data) {
-      console.log(chalk.gray(JSON.stringify(data, null, 2)));
+      p.log.info(JSON.stringify(data, null, 2));
     }
   }
 
   /**
    * Log a success message
-   *
-   * @param message - Message to display
-   * @param data - Optional additional data to display
    */
   success(message: string, data?: unknown): void {
-    console.log(chalk.green('✓'), message);
+    p.log.success(message);
     if (data) {
-      console.log(chalk.gray(JSON.stringify(data, null, 2)));
+      p.log.info(JSON.stringify(data, null, 2));
     }
   }
 
   /**
    * Log a warning message
-   *
-   * @param message - Message to display
-   * @param data - Optional additional data to display
    */
   warning(message: string, data?: unknown): void {
-    console.log(chalk.yellow('⚠'), message);
+    p.log.warning(message);
     if (data) {
-      console.log(chalk.gray(JSON.stringify(data, null, 2)));
+      p.log.info(JSON.stringify(data, null, 2));
     }
   }
 
   /**
    * Log an error message
-   *
-   * @param message - Message to display
-   * @param error - Optional error object
    */
   error(message: string, error?: unknown): void {
-    console.error(chalk.red('✗'), message);
+    p.log.error(message);
     if (error instanceof Error) {
-      console.error(chalk.red(error.message));
+      p.log.error(error.message);
       if (error.stack) {
-        console.error(chalk.gray(error.stack));
+        p.log.info(error.stack);
       }
     } else if (error) {
-      console.error(chalk.gray(JSON.stringify(error, null, 2)));
+      p.log.info(JSON.stringify(error, null, 2));
     }
+  }
+
+  /**
+   * Create a spinner for async operations
+   */
+  spinner(_text: string): ReturnType<typeof p.spinner> {
+    return p.spinner();
+  }
+
+  /**
+   * Display a note/boxed message
+   */
+  box(message: string, options?: { title?: string }): void {
+    p.note(message, options?.title);
+  }
+
+  /**
+   * Display a section header
+   */
+  section(title: string): void {
+    p.log.step(title);
   }
 }
 
 /**
  * Default logger instance
- *
- * @description
- * Singleton logger instance for use throughout the CLI.
  */
 export const logger = new Logger();
