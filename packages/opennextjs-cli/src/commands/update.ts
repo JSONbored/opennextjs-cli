@@ -14,6 +14,7 @@ import { checkForUpdates, updatePackage } from '../utils/updater.js';
 import { readPackageJson } from '../utils/config-reader.js';
 import { logger } from '../utils/logger.js';
 import { promptConfirmation } from '../prompts.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `update` command for updating packages
@@ -71,18 +72,20 @@ This command helps keep your OpenNext.js setup up to date with the latest versio
       try {
         p.intro('🔄 Checking for Updates');
 
-        const projectRoot = process.cwd();
-        const detection = detectNextJsProject(projectRoot);
+        // Detect project root (handles monorepos)
+        const rootResult = detectProjectRoot();
+        const projectRoot = rootResult.projectRoot;
 
-        if (!detection.isNextJsProject) {
-          logger.error('Not a Next.js project');
-          logger.info('Run this command from a Next.js project directory');
+        if (!rootResult.foundNextJs) {
+          p.log.error('Not a Next.js project');
+          p.log.info('Run this command from a Next.js project directory');
           process.exit(1);
         }
 
+        const detection = detectNextJsProject(projectRoot);
         if (!detection.hasOpenNext) {
-          logger.error('OpenNext.js Cloudflare is not configured');
-          logger.info('Run "opennextjs-cli add" to set up OpenNext.js first');
+          p.log.error('OpenNext.js Cloudflare is not configured');
+          p.log.info('Run "opennextjs-cli add" to set up OpenNext.js first');
           process.exit(1);
         }
 

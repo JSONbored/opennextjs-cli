@@ -45,6 +45,12 @@ on:
   push:
     tags:
       - 'v*.*.*'      # Matches v1.2.3
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0). Leave empty to use package.json version.'
+        required: false
+        type: string
 
 jobs:
   release:
@@ -82,15 +88,25 @@ jobs:
         working-directory: packages/opennextjs-mcp
         run: pnpm build
 
-      - name: Extract version from tag
+      - name: Extract version from tag or input
         id: version
         run: |
-          # Extract version from tag (e.g., v1.0.0 → 1.0.0)
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION="${TAG_NAME#v}"
+          # For workflow_dispatch, use input version or package.json version
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.version }}" ]; then
+              VERSION="${{ github.event.inputs.version }}"
+            else
+              # Read from CLI package.json
+              VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
+            fi
+          else
+            # Extract version from tag (e.g., v1.0.0 → 1.0.0)
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
+          fi
           
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Tag version: $VERSION"
+          echo "Version: $VERSION"
 
       - name: Verify CLI package.json version matches tag
         working-directory: packages/opennextjs-cli
@@ -130,35 +146,95 @@ jobs:
           sudo apt-get update && sudo apt-get install -y git-cliff || \
             echo "⚠️ git-cliff installation failed, will skip changelog generation" >&2
 
-      - name: Generate changelog
+      - name: Generate package-specific changelog sections
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           
           TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+          TAG="v$TAG_VERSION"
           
-          # Generate changelog with git-cliff (writes to root CHANGELOG.md)
+          # Generate CLI changelog section (only commits affecting packages/opennextjs-cli/**)
+          echo "📝 Generating CLI changelog section..."
           git-cliff \
             --config cliff.toml \
-            --tag "v$TAG_VERSION" \
+            --include-path "packages/opennextjs-cli/**" \
+            --tag "$TAG" \
+            --latest \
+            --unreleased \
+            --output /tmp/cli-changelog.md \
             --verbose || \
-            echo "⚠️ Changelog generation failed, will continue without it" >&2
+            echo "⚠️ CLI changelog generation failed" >&2
           
-          # Extract changelog section for this version
-          if [ -f CHANGELOG.md ]; then
-            # Extract the section for this version
-            awk "/^## \\[$TAG_VERSION\\]/,/^## \\[/ {if (/^## \\[/ && !/^## \\[$TAG_VERSION\\]/) exit; print}" CHANGELOG.md > /tmp/changelog-section.md || \
-              echo "## [$TAG_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
-          else
-            echo "## [$TAG_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+          # Generate MCP changelog section (only commits affecting packages/opennextjs-mcp/**)
+          echo "📝 Generating MCP changelog section..."
+          git-cliff \
+            --config cliff.toml \
+            --include-path "packages/opennextjs-mcp/**" \
+            --tag "$TAG" \
+            --latest \
+            --unreleased \
+            --output /tmp/mcp-changelog.md \
+            --verbose || \
+            echo "⚠️ MCP changelog generation failed" >&2
+          
+          # Combine changelog sections
+          echo "📝 Combining changelog sections..."
+          
+          # Start with version header
+          echo "## [$TAG_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+          echo "" >> /tmp/changelog-section.md
+          
+          # Extract CLI section (skip header, get body)
+          if [ -f /tmp/cli-changelog.md ] && [ -s /tmp/cli-changelog.md ]; then
+            echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
             echo "" >> /tmp/changelog-section.md
-            echo "Release $TAG_VERSION" >> /tmp/changelog-section.md
+            # Skip the header and version line, get the body
+            tail -n +2 /tmp/cli-changelog.md | sed '/^## \[/,$d' >> /tmp/changelog-section.md || true
+            echo "" >> /tmp/changelog-section.md
           fi
           
+          # Extract MCP section (skip header, get body)
+          if [ -f /tmp/mcp-changelog.md ] && [ -s /tmp/mcp-changelog.md ]; then
+            echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
+            echo "" >> /tmp/changelog-section.md
+            # Skip the header and version line, get the body
+            tail -n +2 /tmp/mcp-changelog.md | sed '/^## \[/,$d' >> /tmp/changelog-section.md || true
+            echo "" >> /tmp/changelog-section.md
+          fi
+          
+          # If no package-specific sections, create a generic one
+          if [ ! -s /tmp/cli-changelog.md ] && [ ! -s /tmp/mcp-changelog.md ]; then
+            echo "Initial release of OpenNext.js CLI and MCP server packages." >> /tmp/changelog-section.md
+            echo "" >> /tmp/changelog-section.md
+          fi
+          
+          # Update main CHANGELOG.md (prepend new section)
+          if [ -f CHANGELOG.md ]; then
+            # Prepend new section to existing changelog
+            cat /tmp/changelog-section.md CHANGELOG.md > /tmp/combined-changelog.md
+            mv /tmp/combined-changelog.md CHANGELOG.md
+          else
+            # Create new changelog with header
+            cat > CHANGELOG.md << 'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+EOF
+            cat /tmp/changelog-section.md >> CHANGELOG.md
+          fi
+          
+          # Set changelog section for GitHub release
           echo "CHANGELOG_SECTION<<EOF" >> $GITHUB_ENV
           cat /tmp/changelog-section.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+          
+          echo "✅ Changelog generated successfully"
 
       - name: Publish CLI to npm (try OIDC first)
         id: publish-cli-oidc

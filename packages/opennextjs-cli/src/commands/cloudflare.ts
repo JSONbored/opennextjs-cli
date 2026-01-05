@@ -34,16 +34,18 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('login')
         .description('Authenticate with Cloudflare')
-        .action(() => {
+        .action(async () => {
           try {
             p.intro('🔐 Cloudflare Authentication');
 
-            logger.section('Login');
-            p.log.info('Opening Cloudflare login in your browser...');
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            p.note('Opening Cloudflare login in your browser...', 'Login');
 
             execSync('wrangler login', { stdio: 'inherit' });
 
-            logger.success('Successfully authenticated with Cloudflare');
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            p.note('Successfully authenticated with Cloudflare', 'Authentication');
+            await new Promise((resolve) => setTimeout(resolve, 150));
             p.outro('Authentication complete');
           } catch (error) {
             logger.error('Failed to authenticate', error);
@@ -54,32 +56,40 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('verify')
         .description('Verify current authentication status')
-        .action(() => {
+        .action(async () => {
           try {
             p.intro('✅ Verifying Authentication');
 
-            logger.section('Authentication Status');
+            await new Promise((resolve) => setTimeout(resolve, 150));
             try {
               const output = execSync('wrangler whoami', { encoding: 'utf-8' });
-              logger.success('Authenticated with Cloudflare');
-              p.log.info(output.trim());
-            } catch {
-              logger.error('Not authenticated with Cloudflare');
-              logger.info('Run "opennextjs-cli cloudflare login" to authenticate');
-              process.exit(1);
-            }
+              const verifyInfo = [
+                '  ✓ Authenticated with Cloudflare',
+                `  ${output.trim()}`,
+              ];
+              p.note(verifyInfo.join('\n'), 'Authentication Status');
 
             // Check account ID in config
             const wranglerToml = readWranglerToml();
             if (wranglerToml) {
               const accountId = extractAccountId(wranglerToml);
               if (accountId) {
-                p.log.info(`Account ID in config: ${accountId}`);
+                  await new Promise((resolve) => setTimeout(resolve, 150));
+                  p.note(`  Account ID: ${accountId}`, 'Configuration');
               } else {
-                logger.warning('Account ID not found in wrangler.toml');
+                  await new Promise((resolve) => setTimeout(resolve, 150));
+                  p.note('  ▲ Account ID not found in wrangler.toml', 'Configuration');
               }
             }
+            } catch {
+              p.note(
+                '  ■ Not authenticated with Cloudflare\n  Run "opennextjs-cli cloudflare login" to authenticate',
+                'Authentication Status'
+              );
+              process.exit(1);
+            }
 
+            await new Promise((resolve) => setTimeout(resolve, 150));
             p.outro('Verification complete');
           } catch (error) {
             logger.error('Failed to verify authentication', error);
@@ -90,20 +100,23 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('account')
         .description('Show account information')
-        .action(() => {
+        .action(async () => {
           try {
             p.intro('👤 Account Information');
 
-            logger.section('Account Details');
+            await new Promise((resolve) => setTimeout(resolve, 150));
             try {
               const output = execSync('wrangler whoami', { encoding: 'utf-8' });
-              console.log(output);
+              p.note(output.trim(), 'Account Details');
             } catch {
-              logger.error('Not authenticated');
-              logger.info('Run "opennextjs-cli cloudflare login" first');
+              p.note(
+                '  ■ Not authenticated\n  Run "opennextjs-cli cloudflare login" first',
+                'Account Details'
+              );
               process.exit(1);
             }
 
+            await new Promise((resolve) => setTimeout(resolve, 150));
             p.outro('Account information displayed');
           } catch (error) {
             logger.error('Failed to get account information', error);
@@ -114,16 +127,19 @@ export function cloudflareCommand(): Command {
     .addCommand(
       new Command('logout')
         .description('Clear Cloudflare authentication')
-        .action(() => {
+        .action(async () => {
           try {
             p.intro('🚪 Logging Out');
 
             // Wrangler doesn't have a logout command, but we can clear the token
-            logger.section('Clearing Authentication');
-            p.log.info('To logout, delete the Cloudflare API token from:');
-            p.log.info('  ~/.wrangler/config/default.toml');
-            p.log.info('Or revoke it from: https://dash.cloudflare.com/profile/api-tokens');
-
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            const logoutInfo = [
+              'To logout, delete the Cloudflare API token from:',
+              '  ~/.wrangler/config/default.toml',
+              'Or revoke it from: https://dash.cloudflare.com/profile/api-tokens',
+            ];
+            p.note(logoutInfo.join('\n'), 'Clearing Authentication');
+            await new Promise((resolve) => setTimeout(resolve, 150));
             p.outro('Logout instructions displayed');
           } catch (error) {
             logger.error('Failed to logout', error);

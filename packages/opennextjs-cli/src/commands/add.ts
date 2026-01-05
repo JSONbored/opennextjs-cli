@@ -22,6 +22,7 @@ import { detectMonorepo, isInMonorepo } from '../utils/monorepo-detector.js';
 import { getRollbackManager } from '../utils/rollback.js';
 import { getMergedConfig } from '../utils/config-manager.js';
 import { createDryRunManager } from '../utils/dry-run.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `add` command for adding OpenNext to existing projects
@@ -117,7 +118,12 @@ Troubleshooting:
       dryRun?: boolean;
     }) => {
       const rollbackManager = getRollbackManager();
-      const projectRoot = process.cwd();
+      
+      // Detect project root (handles monorepos)
+      // For "add", we want to add to the current directory if it's a Next.js project,
+      // or detect the Next.js project in a monorepo
+      const rootResult = detectProjectRoot();
+      const projectRoot = rootResult.projectRoot;
       const dryRun = options.dryRun || false;
       const dryRunManager = createDryRunManager(dryRun);
 
@@ -288,7 +294,7 @@ Troubleshooting:
           {
             title: 'Generating configuration files',
             task: async () => {
-              await generateCloudflareConfig(config, process.cwd());
+              await generateCloudflareConfig(config, projectRoot);
             },
           },
         ];

@@ -1,0 +1,64 @@
+# Test files and directories
+src/__tests__/
+__tests__/
+*.test.ts
+*.spec.ts
+**/*.test.ts
+**/*.spec.ts
+coverage/
+.nyc_output/
+jest.config.js
+vitest.config.ts
+
+# Development files
+tsconfig.json
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Source files (only dist is published)
+src/
+*.ts
+!*.d.ts
+
+# Development dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Documentation (keep README.md)
+docs/
+*.md
+!README.md
+
+# Test fixtures
+test-fixtures/
+fixtures/
+__fixtures__/
+
+# Temporary files
+.tmp/
+tmp/
+*.log
+*.tmp

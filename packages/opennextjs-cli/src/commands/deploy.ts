@@ -13,6 +13,7 @@ import { detectNextJsProject } from '../utils/project-detector.js';
 import { detectPackageManager } from '../utils/package-manager.js';
 import { logger } from '../utils/logger.js';
 import { validateConfiguration } from '../utils/validator.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `deploy` command for deploying to Cloudflare
@@ -80,24 +81,26 @@ Prerequisites:
       try {
         p.intro('🚀 Deploying to Cloudflare');
 
-        const projectRoot = process.cwd();
-        const detection = detectNextJsProject(projectRoot);
+        // Detect project root (handles monorepos)
+        const rootResult = detectProjectRoot();
+        const projectRoot = rootResult.projectRoot;
 
-        if (!detection.isNextJsProject) {
-          logger.error('Not a Next.js project');
-          logger.info('Run this command from a Next.js project directory');
+        if (!rootResult.foundNextJs) {
+          p.log.error('Not a Next.js project');
+          p.log.info('Run this command from a Next.js project directory');
           process.exit(1);
         }
 
+        const detection = detectNextJsProject(projectRoot);
         if (!detection.hasOpenNext) {
-          logger.error('OpenNext.js Cloudflare is not configured');
-          logger.info('Run "opennextjs-cli add" to set up OpenNext.js first');
+          p.log.error('OpenNext.js Cloudflare is not configured');
+          p.log.info('Run "opennextjs-cli add" to set up OpenNext.js first');
           process.exit(1);
         }
 
         // Validate configuration
         if (!options.skipValidation) {
-          logger.section('Validation');
+          await new Promise((resolve) => setTimeout(resolve, 150));
           const validationSpinner = p.spinner();
           validationSpinner.start('Validating configuration...');
           
@@ -105,42 +108,53 @@ Prerequisites:
           validationSpinner.stop();
 
           if (!validation.valid) {
-            logger.error(`Configuration has ${validation.errors.length} error(s)`);
-            logger.info('Run "opennextjs-cli validate" to see details');
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            p.note(
+              `Configuration has ${validation.errors.length} error(s)\nRun "opennextjs-cli validate" to see details`,
+              'Validation Failed'
+            );
             process.exit(1);
           }
 
           if (validation.warnings.length > 0) {
-            logger.warning(`Configuration has ${validation.warnings.length} warning(s)`);
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            p.note(
+              `Configuration has ${validation.warnings.length} warning(s)`,
+              'Validation Warnings'
+            );
             const continueAnyway = await p.confirm({
               message: 'Continue with deployment?',
               initialValue: true,
             });
 
             if (continueAnyway === false) {
-              logger.info('Deployment cancelled');
+              p.log.info('Deployment cancelled');
               return;
             }
           } else {
-            logger.success('Configuration is valid');
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            p.note('Configuration is valid', 'Validation');
+            await new Promise((resolve) => setTimeout(resolve, 150));
           }
         }
 
         if (options.dryRun) {
-          logger.section('Dry Run');
-          p.log.info('This would deploy to:');
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          const dryRunInfo: string[] = [];
           if (options.preview) {
-            p.log.info('  Type: Preview deployment');
+            dryRunInfo.push('  Type: Preview deployment');
           } else {
-            p.log.info(`  Environment: ${options.env || 'production'}`);
+            dryRunInfo.push(`  Environment: ${options.env || 'production'}`);
           }
-          p.log.info('  Worker: (from wrangler.toml)');
+          dryRunInfo.push('  Worker: (from wrangler.toml)');
+          p.note(dryRunInfo.join('\n'), 'Dry Run');
+          await new Promise((resolve) => setTimeout(resolve, 150));
           p.outro('Dry run complete - no changes made');
           return;
         }
 
         // Build and deploy using tasks()
-        logger.section('Build & Deploy');
+        await new Promise((resolve) => setTimeout(resolve, 150));
         const packageManager = detectPackageManager(projectRoot);
 
         await p.tasks([
@@ -181,12 +195,12 @@ Prerequisites:
           },
         ]);
 
-        logger.success('Successfully deployed to Cloudflare!');
+        await new Promise((resolve) => setTimeout(resolve, 150));
         p.note(
           'Your deployment is live! Check the Cloudflare dashboard for the URL.',
           '🎉 Deployment Successful'
         );
-
+        await new Promise((resolve) => setTimeout(resolve, 150));
         p.outro('Deployment complete');
       } catch (error) {
         logger.error('Failed to deploy', error);

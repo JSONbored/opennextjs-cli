@@ -8,15 +8,24 @@
 
 import { Command } from 'commander';
 import * as p from '@clack/prompts';
-import { validateConfiguration } from '../utils/validator.js';
-import { logger } from '../utils/logger.js';
+import {
+  validateProjectStructureAsync,
+  validateWranglerTomlAsync,
+  validateOpenNextConfigAsync,
+  validatePackageScriptsAsync,
+  validateDependenciesAsync,
+  validateCloudflareConnectionAsync,
+  type ValidationCheck,
+} from '../utils/validator.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `validate` command for validating configuration
  *
  * @description
  * This command validates all configuration files and checks for common issues,
- * providing actionable fix suggestions.
+ * providing actionable fix suggestions. Uses beautiful structured output
+ * matching the status command style.
  *
  * @returns Configured Commander command
  *
@@ -61,108 +70,185 @@ actionable suggestions for fixing problems.
           p.intro('🔍 Validating Configuration');
         }
 
-        const projectRoot = process.cwd();
-        const result: ReturnType<typeof validateConfiguration> = validateConfiguration(projectRoot);
+        // Detect project root (handles monorepos)
+        const rootResult = detectProjectRoot();
+        const projectRoot = rootResult.projectRoot;
 
-        // Use tasks() for sequential validation steps
+        if (!rootResult.foundNextJs) {
+          if (options.json) {
+            console.log(JSON.stringify({
+              valid: false,
+              checks: [],
+              errors: [{
+                name: 'Next.js project',
+                status: 'fail' as const,
+                message: 'Not a Next.js project',
+                fix: 'Run this command from a Next.js project directory',
+              }],
+              warnings: [],
+            }, null, 2));
+            return;
+          }
+
+          p.log.error('Not a Next.js project');
+          p.log.info('Run this command from a Next.js project directory');
+          process.exit(1);
+        }
+
+        // Collect validation checks as we run tasks
+        const checks: ValidationCheck[] = [];
+
+        // Use tasks() for sequential validation steps - actually run validation
         if (!options.json) {
           await p.tasks([
             {
               title: 'Validating project structure',
               task: async () => {
-                // Validation happens synchronously but we show progress
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                const check = await validateProjectStructureAsync(projectRoot);
+                checks.push(check);
               },
             },
             {
               title: 'Validating wrangler.toml',
               task: async () => {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                const check = await validateWranglerTomlAsync(projectRoot);
+                checks.push(check);
               },
             },
             {
               title: 'Validating open-next.config.ts',
               task: async () => {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                const check = await validateOpenNextConfigAsync(projectRoot);
+                checks.push(check);
               },
             },
             {
               title: 'Checking package.json scripts',
               task: async () => {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                const check = await validatePackageScriptsAsync(projectRoot);
+                checks.push(check);
               },
             },
             {
               title: 'Checking dependencies',
               task: async () => {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                const check = await validateDependenciesAsync(projectRoot);
+                checks.push(check);
               },
             },
             {
               title: 'Validating Cloudflare setup',
               task: async () => {
-                await new Promise((resolve) => setTimeout(resolve, 100));
+                const check = await validateCloudflareConnectionAsync();
+                checks.push(check);
               },
             },
           ]);
+        } else {
+          // For JSON mode, run all checks synchronously
+          checks.push(await validateProjectStructureAsync(projectRoot));
+          checks.push(await validateWranglerTomlAsync(projectRoot));
+          checks.push(await validateOpenNextConfigAsync(projectRoot));
+          checks.push(await validatePackageScriptsAsync(projectRoot));
+          checks.push(await validateDependenciesAsync(projectRoot));
+          checks.push(await validateCloudflareConnectionAsync());
         }
+
+        const errors = checks.filter((c) => c.status === 'fail');
+        const warnings = checks.filter((c) => c.status === 'warning');
+        const passing = checks.filter((c) => c.status === 'pass');
+
+        const result = {
+          valid: errors.length === 0,
+          checks,
+          errors,
+          warnings,
+        };
 
         if (options.json) {
           console.log(JSON.stringify(result, null, 2));
           return;
         }
 
-        // Display results
-        logger.section('Validation Results');
+        // Display results with beautiful structured output (matching status.ts style)
+        await new Promise((resolve) => setTimeout(resolve, 150));
 
-        // Show passing checks
-        const passing = result.checks.filter((c) => c.status === 'pass');
+        // Group 1: Passing checks
         if (passing.length > 0) {
-          for (const check of passing) {
-            logger.success(`${check.name}: ${check.message}`);
-          }
+          const passingInfo = passing.map((check) => {
+            return `  ✓ ${check.name}: ${check.message}`;
+          }).join('\n');
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          p.note(passingInfo, 'Validation Results');
+          await new Promise((resolve) => setTimeout(resolve, 150));
         }
 
-        // Show warnings
-        if (result.warnings.length > 0) {
-          logger.section('Warnings');
-          for (const warning of result.warnings) {
-            logger.warning(`${warning.name}: ${warning.message}`);
+        // Group 2: Warnings
+        if (warnings.length > 0) {
+          const warningsInfo = warnings.map((warning) => {
+            let info = `  ⚠  ${warning.name}: ${warning.message}`;
             if (warning.fix) {
-              p.log.info(`  Fix: ${warning.fix}`);
+              info += `\n    Fix: ${warning.fix}`;
             }
-          }
+            if (warning.docsUrl) {
+              info += `\n    📖 Docs: ${warning.docsUrl}`;
+            }
+            return info;
+          }).join('\n\n');
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          p.note(warningsInfo, 'Warnings');
+          await new Promise((resolve) => setTimeout(resolve, 150));
         }
 
-        // Show errors
-        if (result.errors.length > 0) {
-          logger.section('Errors');
-          for (const error of result.errors) {
-            logger.error(`${error.name}: ${error.message}`);
+        // Group 3: Errors
+        if (errors.length > 0) {
+          const errorsInfo = errors.map((error) => {
+            let info = `  ✗ ${error.name}: ${error.message}`;
             if (error.fix) {
-              p.log.info(`  Fix: ${error.fix}`);
+              info += `\n    Fix: ${error.fix}`;
             }
-          }
+            if (error.docsUrl) {
+              info += `\n    📖 Docs: ${error.docsUrl}`;
+            }
+            return info;
+          }).join('\n\n');
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          p.note(errorsInfo, 'Errors');
+          await new Promise((resolve) => setTimeout(resolve, 150));
         }
 
         // Summary
-        logger.section('Summary');
+        await new Promise((resolve) => setTimeout(resolve, 100));
         if (result.valid) {
-          if (result.warnings.length > 0) {
-            logger.warning(`Configuration is valid with ${result.warnings.length} warning(s)`);
-            p.log.info('Review warnings above and fix if needed');
+          if (warnings.length > 0) {
+            p.note(
+              `Configuration is valid with ${warnings.length} warning(s)\nReview warnings above and fix if needed`,
+              'Summary'
+            );
           } else {
-            logger.success('Configuration is valid! ✓');
+            p.note('Configuration is valid! ✓', 'Summary');
           }
         } else {
-          logger.error(`Configuration has ${result.errors.length} error(s) that must be fixed`);
-          p.log.info('Review errors above and apply the suggested fixes');
-          process.exit(1);
+          p.note(
+            `Configuration has ${errors.length} error(s) that must be fixed\nReview errors above and apply the suggested fixes`,
+            'Summary'
+          );
         }
 
+        await new Promise((resolve) => setTimeout(resolve, 150));
         p.outro('Validation complete');
+
+        if (!result.valid) {
+          process.exit(1);
+        }
       } catch (error) {
-        logger.error('Failed to validate configuration', error);
+        p.log.error('Failed to validate configuration');
+        if (error instanceof Error) {
+          p.log.error(error.message);
+        }
         process.exit(1);
       }
     });

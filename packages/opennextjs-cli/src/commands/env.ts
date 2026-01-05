@@ -14,6 +14,7 @@ import { execSync } from 'child_process';
 import { detectNextJsProject } from '../utils/project-detector.js';
 import { logger } from '../utils/logger.js';
 import { readWranglerToml, extractAccountId } from '../utils/config-reader.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `env` command for managing environment variables
@@ -41,16 +42,24 @@ export function envCommand(): Command {
           try {
             p.intro('🔐 Environment Variables Setup');
 
-            const projectRoot = process.cwd();
-            const detection = detectNextJsProject(projectRoot);
+            // Detect project root (handles monorepos)
+            const rootResult = detectProjectRoot();
+            const projectRoot = rootResult.projectRoot;
 
-            if (!detection.hasOpenNext) {
-              logger.error('OpenNext.js Cloudflare is not configured');
-              logger.info('Run "opennextjs-cli add" to set up OpenNext.js first');
+            if (!rootResult.foundNextJs) {
+              p.log.error('Not a Next.js project');
+              p.log.info('Run this command from a Next.js project directory');
               process.exit(1);
             }
 
-            logger.section('Cloudflare Account');
+            const detection = detectNextJsProject(projectRoot);
+            if (!detection.hasOpenNext) {
+              p.log.error('OpenNext.js Cloudflare is not configured');
+              p.log.info('Run "opennextjs-cli add" to set up OpenNext.js first');
+              process.exit(1);
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 150));
             const credentials = await p.group(
               {
                 accountId: () => p.text({
@@ -80,18 +89,19 @@ export function envCommand(): Command {
             // Update wrangler.toml with account_id if not present
             const wranglerToml = readWranglerToml(projectRoot);
             if (wranglerToml && !extractAccountId(wranglerToml)) {
-              logger.section('Updating Configuration');
+              await new Promise((resolve) => setTimeout(resolve, 150));
               const tomlPath = join(projectRoot, 'wrangler.toml');
               const updated = wranglerToml.replace(
                 /^name\s*=/m,
                 `account_id = "${accountId}"\nname =`
               );
               writeFileSync(tomlPath, updated, 'utf-8');
-              logger.success('Updated wrangler.toml with account ID');
+              p.note('Updated wrangler.toml with account ID', 'Updating Configuration');
+              await new Promise((resolve) => setTimeout(resolve, 150));
             }
 
             // Generate .env.example
-            logger.section('Environment Files');
+            await new Promise((resolve) => setTimeout(resolve, 150));
             const envExamplePath = join(projectRoot, '.env.example');
             const envExample = `# Cloudflare Account ID
 CLOUDFLARE_ACCOUNT_ID=${accountId}
@@ -102,7 +112,8 @@ CLOUDFLARE_ACCOUNT_ID=${accountId}
 `;
 
             writeFileSync(envExamplePath, envExample, 'utf-8');
-            logger.success('Created .env.example');
+            p.note('Created .env.example', 'Environment Files');
+            await new Promise((resolve) => setTimeout(resolve, 150));
 
             p.note(
               'For production secrets, use: wrangler secret put <KEY>\nFor local development, add variables to .dev.vars',
@@ -119,35 +130,42 @@ CLOUDFLARE_ACCOUNT_ID=${accountId}
     .addCommand(
       new Command('validate')
         .description('Validate environment variables')
-        .action(() => {
+        .action(async () => {
           try {
             p.intro('✅ Validating Environment Variables');
 
-            const projectRoot = process.cwd();
+            // Detect project root (handles monorepos)
+            const rootResult = detectProjectRoot();
+            const projectRoot = rootResult.projectRoot;
             const wranglerToml = readWranglerToml(projectRoot);
 
             if (!wranglerToml) {
-              logger.error('wrangler.toml not found');
+              p.log.error('wrangler.toml not found');
               process.exit(1);
             }
 
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            const validationInfo: string[] = [];
+
             const accountId = extractAccountId(wranglerToml);
             if (!accountId) {
-              logger.warning('Account ID not found in wrangler.toml');
-              logger.info('Run "opennextjs-cli env setup" to configure');
+              validationInfo.push('  ▲ Account ID not found in wrangler.toml');
+              validationInfo.push('    Run "opennextjs-cli env setup" to configure');
             } else {
-              logger.success(`Account ID: ${accountId}`);
+              validationInfo.push(`  ✓ Account ID: ${accountId}`);
             }
 
             // Check for .dev.vars
             const devVarsPath = join(projectRoot, '.dev.vars');
             if (existsSync(devVarsPath)) {
-              logger.success('.dev.vars file exists');
+              validationInfo.push('  ✓ .dev.vars file exists');
             } else {
-              logger.warning('.dev.vars file not found');
-              logger.info('Create .dev.vars for local development variables');
+              validationInfo.push('  ▲ .dev.vars file not found');
+              validationInfo.push('    Create .dev.vars for local development variables');
             }
 
+            p.note(validationInfo.join('\n'), 'Validation Results');
+            await new Promise((resolve) => setTimeout(resolve, 150));
             p.outro('Validation complete');
           } catch (error) {
             logger.error('Failed to validate environment variables', error);

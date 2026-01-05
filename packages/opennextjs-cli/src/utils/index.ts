@@ -7,6 +7,7 @@
  */
 
 export * from './project-detector.js';
+export * from './project-root-detector.js';
 export * from './package-manager.js';
 export * from './logger.js';
 export * from './validators.js';

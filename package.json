@@ -31,7 +31,9 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "changelog:generate": "tsx scripts/generate-changelog.ts",
+    "changelog:preview": "git-cliff --config cliff.toml --latest --unreleased"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

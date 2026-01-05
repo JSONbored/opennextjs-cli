@@ -19,6 +19,7 @@ import { detectMonorepo, isInMonorepo } from '../utils/monorepo-detector.js';
 import { getRollbackManager } from '../utils/rollback.js';
 import { getMergedConfig } from '../utils/config-manager.js';
 import { promptConfirmation } from '../prompts.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `config` command for updating configuration
@@ -92,9 +93,18 @@ Note:
       reset?: boolean;
     }) => {
       const rollbackManager = getRollbackManager();
-      const projectRoot = process.cwd();
+      
+      // Detect project root (handles monorepos)
+      const rootResult = detectProjectRoot();
+      const projectRoot = rootResult.projectRoot;
 
       try {
+        if (!rootResult.foundNextJs) {
+          p.log.error('Not a Next.js project');
+          p.log.info('Run this command from a Next.js project directory');
+          process.exit(1);
+        }
+
         // Safety checks
         logger.section('Safety Checks');
         const safetyCheck = performSafetyChecks(projectRoot, 'config');

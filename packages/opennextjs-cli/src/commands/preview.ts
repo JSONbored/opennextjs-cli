@@ -11,6 +11,7 @@ import * as p from '@clack/prompts';
 import { spawn } from 'child_process';
 import { detectNextJsProject } from '../utils/project-detector.js';
 import { logger } from '../utils/logger.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Creates the `preview` command for local preview
@@ -58,34 +59,40 @@ What it does:
 Press Ctrl+C to stop the preview server.
 `
     )
-    .action((options: { port?: string; env?: string }) => {
+    .action(async (options: { port?: string; env?: string }) => {
       try {
         p.intro('🔍 Starting Preview Server');
 
-        const projectRoot = process.cwd();
-        const detection = detectNextJsProject(projectRoot);
+        // Detect project root (handles monorepos)
+        const rootResult = detectProjectRoot();
+        const projectRoot = rootResult.projectRoot;
 
-        if (!detection.isNextJsProject) {
-          logger.error('Not a Next.js project');
-          logger.info('Run this command from a Next.js project directory');
+        if (!rootResult.foundNextJs) {
+          p.log.error('Not a Next.js project');
+          p.log.info('Run this command from a Next.js project directory');
           process.exit(1);
         }
 
+        const detection = detectNextJsProject(projectRoot);
         if (!detection.hasOpenNext) {
-          logger.error('OpenNext.js Cloudflare is not configured');
-          logger.info('Run "opennextjs-cli add" to set up OpenNext.js first');
+          p.log.error('OpenNext.js Cloudflare is not configured');
+          p.log.info('Run "opennextjs-cli add" to set up OpenNext.js first');
           process.exit(1);
         }
 
         const port = options.port || '8787';
         const env = options.env;
 
-        logger.section('Starting Server');
-        p.log.info(`Port: ${port}`);
+        // Display server configuration with structured output
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        const serverInfo: string[] = [`  Port: ${port}`];
         if (env) {
-          p.log.info(`Environment: ${env}`);
+          serverInfo.push(`  Environment: ${env}`);
         }
-        p.log.info('Starting wrangler dev...');
+        serverInfo.push('  Starting wrangler dev...');
+        
+        p.note(serverInfo.join('\n'), 'Starting Server');
+        await new Promise((resolve) => setTimeout(resolve, 150));
 
         // Build command
         const wranglerCommand = 'wrangler';

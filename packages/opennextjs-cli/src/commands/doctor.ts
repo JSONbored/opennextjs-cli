@@ -17,6 +17,7 @@ import { validateConfiguration } from '../utils/validator.js';
 import { logger } from '../utils/logger.js';
 import { readPackageJson } from '../utils/config-reader.js';
 import { addDependency } from '../utils/package-manager.js';
+import { detectProjectRoot } from '../utils/project-root-detector.js';
 
 /**
  * Health check result
@@ -75,7 +76,9 @@ Use --fix to automatically resolve fixable issues.
       try {
         p.intro('🏥 Running Health Checks');
 
-        const projectRoot = process.cwd();
+        // Detect project root (handles monorepos)
+        const rootResult = detectProjectRoot();
+        const projectRoot = rootResult.projectRoot;
         const checks: HealthCheck[] = [];
 
         // Run health checks sequentially using tasks()
@@ -299,50 +302,90 @@ Use --fix to automatically resolve fixable issues.
           },
         ]);
 
-        // Display results
-        logger.section('Health Check Results');
+        // Display results with beautiful structured output (matching status.ts style)
+        await new Promise((resolve) => setTimeout(resolve, 150));
 
         const passing = checks.filter((c) => c.status === 'pass');
         const warnings = checks.filter((c) => c.status === 'warning');
         const failures = checks.filter((c) => c.status === 'fail');
 
-        for (const check of passing) {
-          logger.success(`${check.name}: ${check.message}`);
+        // Group 1: Passing checks
+        if (passing.length > 0) {
+          const passingInfo = passing.map((check) => {
+            return `  ✓ ${check.name}: ${check.message}`;
+          }).join('\n');
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          p.note(passingInfo, 'Health Check Results');
+          await new Promise((resolve) => setTimeout(resolve, 150));
         }
 
+        // Group 2: Warnings
+        if (warnings.length > 0) {
+          const warningsInfo = warnings.map((check) => {
+            let info = `  ▲ ${check.name}: ${check.message}`;
+            if (check.fix) {
+              if (options.fix) {
+                info += '\n    Attempting to fix...';
+              } else {
+                info += '\n    Fix available: Run with --fix flag';
+              }
+            }
+            return info;
+          }).join('\n\n');
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          p.note(warningsInfo, 'Warnings');
+          await new Promise((resolve) => setTimeout(resolve, 150));
+
+          // Apply fixes if requested
+          if (options.fix) {
         for (const check of warnings) {
-          logger.warning(`${check.name}: ${check.message}`);
-          if (check.fix && options.fix) {
-            p.log.info('  Attempting to fix...');
+              if (check.fix) {
             await check.fix();
-          } else if (check.fix) {
-            p.log.info(`  Fix: ${check.message}`);
+              }
+            }
           }
         }
 
+        // Group 3: Failures
+        if (failures.length > 0) {
+          const failuresInfo = failures.map((check) => {
+            let info = `  ■ ${check.name}: ${check.message}`;
+            if (check.fix) {
+              if (options.fix) {
+                info += '\n    Attempting to fix...';
+              } else {
+                info += '\n    Fix available: Run with --fix flag';
+              }
+            }
+            return info;
+          }).join('\n\n');
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          p.note(failuresInfo, 'Issues');
+          await new Promise((resolve) => setTimeout(resolve, 150));
+
+          // Apply fixes if requested
+          if (options.fix) {
         for (const check of failures) {
-          logger.error(`${check.name}: ${check.message}`);
-          if (check.fix && options.fix) {
-            p.log.info('  Attempting to fix...');
+              if (check.fix) {
             await check.fix();
-          } else if (check.fix) {
-            p.log.info(`  Fix: ${check.message}`);
+              }
+            }
           }
         }
 
         // Summary
-        logger.section('Summary');
+        await new Promise((resolve) => setTimeout(resolve, 100));
         if (failures.length === 0 && warnings.length === 0) {
-          logger.success('All checks passed! ✓');
+          p.note('All checks passed! ✓', 'Summary');
         } else {
-          logger.warning(
-            `${failures.length} issue(s) found, ${warnings.length} warning(s)`
-          );
-          if (!options.fix && (failures.length > 0 || warnings.length > 0)) {
-            p.log.info('Run with --fix to attempt automatic fixes');
+          const summaryText = `${failures.length} issue(s) found, ${warnings.length} warning(s)${!options.fix && (failures.length > 0 || warnings.length > 0) ? '\nRun with --fix to attempt automatic fixes' : ''}`;
+          p.note(summaryText, 'Summary');
           }
-        }
 
+        await new Promise((resolve) => setTimeout(resolve, 150));
         p.outro('Health check complete');
       } catch (err) {
         logger.error('Failed to run health checks', err);

@@ -20,6 +20,7 @@ export interface ValidationCheck {
   status: 'pass' | 'fail' | 'warning';
   message: string;
   fix?: string;
+  docsUrl?: string;
 }
 
 /**
@@ -44,6 +45,7 @@ function validateWranglerToml(projectRoot: string): ValidationCheck {
       status: 'fail',
       message: 'wrangler.toml file not found',
       fix: 'Run "opennextjs-cli add" to generate wrangler.toml',
+      docsUrl: 'https://developers.cloudflare.com/workers/configuration/configuration-files/',
     };
   }
 
@@ -57,6 +59,7 @@ function validateWranglerToml(projectRoot: string): ValidationCheck {
       status: 'fail',
       message: 'wrangler.toml missing required "name" field',
       fix: 'Add "name = \\"your-worker-name\\"" to wrangler.toml',
+      docsUrl: 'https://developers.cloudflare.com/workers/configuration/configuration-files/#name',
     };
   }
 
@@ -66,6 +69,7 @@ function validateWranglerToml(projectRoot: string): ValidationCheck {
       status: 'warning',
       message: 'wrangler.toml missing account_id (may be in environment-specific config)',
       fix: 'Add "account_id = \\"your-account-id\\"" to wrangler.toml or environment config',
+      docsUrl: 'https://developers.cloudflare.com/workers/configuration/configuration-files/#account_id',
     };
   }
 
@@ -88,6 +92,7 @@ function validateOpenNextConfig(projectRoot: string): ValidationCheck {
       status: 'fail',
       message: 'open-next.config.ts file not found',
       fix: 'Run "opennextjs-cli add" to generate open-next.config.ts',
+      docsUrl: 'https://github.com/JSONbored/opennextjs-cli#configuration',
     };
   }
 
@@ -100,6 +105,7 @@ function validateOpenNextConfig(projectRoot: string): ValidationCheck {
       status: 'fail',
       message: 'open-next.config.ts missing default export',
       fix: 'Ensure the config file exports a default configuration object',
+      docsUrl: 'https://github.com/JSONbored/opennextjs-cli#configuration',
     };
   }
 
@@ -141,6 +147,7 @@ function validatePackageScripts(projectRoot: string): ValidationCheck {
       status: 'warning',
       message: `Missing recommended scripts: ${missing.join(', ')}`,
       fix: `Add scripts to package.json: ${missing.map(s => `"${s}": "wrangler ..."`).join(', ')}`,
+      docsUrl: 'https://github.com/JSONbored/opennextjs-cli#package-scripts',
     };
   }
 
@@ -187,6 +194,7 @@ function validateDependencies(projectRoot: string): ValidationCheck {
       status: 'fail',
       message: `Missing dependencies: ${missing.join(', ')}`,
       fix: `Install missing dependencies: pnpm add ${missing.includes('@opennextjs/cloudflare') ? '@opennextjs/cloudflare' : ''} ${missing.includes('wrangler (dev dependency)') ? '-D wrangler' : ''}`.trim(),
+      docsUrl: 'https://github.com/JSONbored/opennextjs-cli#installation',
     };
   }
 
@@ -210,6 +218,7 @@ function validateCloudflareConnection(): ValidationCheck {
       status: 'warning',
       message: 'wrangler CLI not found in PATH',
       fix: 'Install wrangler: pnpm add -D wrangler',
+        docsUrl: 'https://developers.cloudflare.com/workers/wrangler/install-and-update/',
     };
   }
 
@@ -227,6 +236,7 @@ function validateCloudflareConnection(): ValidationCheck {
       status: 'warning',
       message: 'Not authenticated with Cloudflare',
       fix: 'Run "wrangler login" to authenticate',
+      docsUrl: 'https://developers.cloudflare.com/workers/wrangler/authentication/',
     };
   }
 }
@@ -294,4 +304,51 @@ export function validateConfiguration(projectRoot: string = process.cwd()): Vali
     errors,
     warnings,
   };
+}
+
+/**
+ * Async validation functions for use in p.tasks()
+ * Each function returns a ValidationCheck that can be collected
+ */
+
+/**
+ * Validates project structure (async wrapper for p.tasks())
+ */
+export function validateProjectStructureAsync(projectRoot: string): Promise<ValidationCheck> {
+  return Promise.resolve(validateProjectStructure(projectRoot));
+}
+
+/**
+ * Validates wrangler.toml (async wrapper for p.tasks())
+ */
+export function validateWranglerTomlAsync(projectRoot: string): Promise<ValidationCheck> {
+  return Promise.resolve(validateWranglerToml(projectRoot));
+}
+
+/**
+ * Validates open-next.config.ts (async wrapper for p.tasks())
+ */
+export function validateOpenNextConfigAsync(projectRoot: string): Promise<ValidationCheck> {
+  return Promise.resolve(validateOpenNextConfig(projectRoot));
+}
+
+/**
+ * Validates package.json scripts (async wrapper for p.tasks())
+ */
+export function validatePackageScriptsAsync(projectRoot: string): Promise<ValidationCheck> {
+  return Promise.resolve(validatePackageScripts(projectRoot));
+}
+
+/**
+ * Validates dependencies (async wrapper for p.tasks())
+ */
+export function validateDependenciesAsync(projectRoot: string): Promise<ValidationCheck> {
+  return Promise.resolve(validateDependencies(projectRoot));
+}
+
+/**
+ * Validates Cloudflare connection (async wrapper for p.tasks())
+ */
+export function validateCloudflareConnectionAsync(): Promise<ValidationCheck> {
+  return Promise.resolve(validateCloudflareConnection());
 }
