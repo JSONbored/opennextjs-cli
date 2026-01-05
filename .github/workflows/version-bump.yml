@@ -36,6 +36,8 @@ on:
       - scripts/bump-version.ts
   workflow_dispatch: {}
 
+permissions: read-all
+
 # Only run when PR is merged (not just closed) OR when manually triggered
 jobs:
   version-bump:
@@ -47,7 +49,6 @@ jobs:
       (github.event_name == 'workflow_dispatch') ||
       (github.event.pull_request.merged == true)
 
-    # checkov:skip=CKV_GHA_3:contents:write is required to commit and push version bumps
     permissions:
       actions: read
       checks: read
@@ -63,7 +64,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0 # Full history for git-cliff
           token: ${{ secrets.GITHUB_TOKEN }}

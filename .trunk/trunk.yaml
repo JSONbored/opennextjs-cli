@@ -13,9 +13,7 @@ lint:
   enabled:
     - eslint@9.39.2
     - actionlint@1.7.10
-    - checkov@3.2.497:
-        skip_checks:
-          - CKV_GHA_3 # False positive: workflows legitimately need write permissions (statuses:write for CI, contents:write for releases/commits)
+    - checkov@3.2.497
     - git-diff-check
     - markdownlint@0.47.0
     - osv-scanner@2.3.1

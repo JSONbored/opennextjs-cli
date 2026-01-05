@@ -10,12 +10,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions: read-all
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # checkov:skip=CKV2_GHA_1:permissions:write-all is required for CI workflows to update commit statuses
     permissions:
       actions: read # Read-only access to workflow runs for CI
       checks: read # Read-only access to check runs
@@ -31,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4

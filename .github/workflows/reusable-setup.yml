@@ -1,5 +1,7 @@
-# Provides reusable setup steps for Node.js, pnpm, and git-cliff
-# that can be called from other workflows to reduce duplication.
+# Reusable Setup Workflow
+#
+# Reusable workflow that can be called from other workflows to reduce duplication.
+# This workflow sets up the environment for the project, including Node.js, pnpm, and git-cliff.
 #
 # Usage:
 #   jobs:
@@ -35,12 +37,26 @@ on:
         type: number
         default: 0
 
+permissions: read-all
+
 jobs:
   setup:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      deployments: none
+      id-token: none
+      issues: none
+      packages: none
+      pull-requests: none
+      repository-projects: none
+      security-events: none
+      statuses: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: ${{ inputs.fetch-depth }}
 

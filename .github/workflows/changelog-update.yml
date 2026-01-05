@@ -23,6 +23,8 @@ on:
       - packages/**
       - .github/workflows/changelog-update.yml
 
+permissions: read-all
+
 jobs:
   update-changelog:
     runs-on: ubuntu-latest
@@ -30,7 +32,6 @@ jobs:
 
     if: github.event.pull_request.merged == true
 
-    # checkov:skip=CKV2_GHA_1:permissions:write-all is required for changelog updates to commit and push
     permissions:
       actions: read # Read-only access to workflow runs for changelog updates
       checks: read # Read-only access to check runs for changelog updates
@@ -46,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0 # Full history for git-cliff
           token: ${{ secrets.GITHUB_TOKEN }}

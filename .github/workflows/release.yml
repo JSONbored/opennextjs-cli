@@ -50,12 +50,13 @@ on:
       - v*.*.* # Matches v1.2.3
   workflow_dispatch: {}
 
+permissions: read-all
+
 jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # checkov:skip=CKV_GHA_3:contents:write is required for creating GitHub releases and pushing tags
     permissions:
       actions: read
       checks: read
@@ -71,7 +72,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0 # Full history for changelog generation
 
