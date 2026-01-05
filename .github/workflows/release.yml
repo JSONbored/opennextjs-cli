@@ -236,7 +236,7 @@ jobs:
           fi
 
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
+            echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: 📋 Step - Check for changes
         id: changes
@@ -388,12 +388,22 @@ jobs:
             echo "✅ Version changes committed"
           fi
 
-          # Create tag
-          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
-          echo "✅ Tag v$NEW_VERSION created"
+          # Create tag (idempotent - skip if already exists)
+          if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+            echo "⚠️ Tag v$NEW_VERSION already exists, skipping creation"
+          else
+            git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+            echo "✅ Tag v$NEW_VERSION created"
+          fi
 
-          # Push commit and tag
-          git push origin main "v$NEW_VERSION"
+          # Push commit and tag (idempotent - only push if tag doesn't exist remotely)
+          git push origin main || exit 0
+          if ! git ls-remote --tags origin "v$NEW_VERSION" | grep -q "v$NEW_VERSION"; then
+            git push origin "v$NEW_VERSION" || exit 0
+            echo "✅ Tag v$NEW_VERSION pushed to remote"
+          else
+            echo "⚠️ Tag v$NEW_VERSION already exists on remote, skipping push"
+          fi
           echo "✅ Committed and tagged v$NEW_VERSION"
           echo "✅ Phase: Version Bump - Complete"
 
@@ -563,6 +573,12 @@ jobs:
         with:
           version: latest
 
+      - name: 📋 Step - Fetch tags from remote
+        run: |
+          echo "⏳ Fetching tags from remote..."
+          git fetch origin --tags --force
+          echo "✅ Tags fetched"
+
       - name: 📋 Step - Determine tag to use
         id: tag_info
         run: |
@@ -588,13 +604,13 @@ jobs:
             echo "📋 Using tag from package.json: $TAG_NAME"
           fi
 
-          # Check if tag exists
+          # Check if tag exists (after fetching from remote)
           if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
             echo "TAG_EXISTS=true" >> "$GITHUB_OUTPUT"
             echo "✅ Tag verified: $TAG_NAME (version: $VERSION)"
           else
             echo "TAG_EXISTS=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️ Tag '$TAG_NAME' does not exist yet (first release)"
+            echo "⚠️ Tag '$TAG_NAME' does not exist yet"
             echo "   Will use --unreleased flag for changelog generation"
           fi
 
@@ -904,52 +920,56 @@ jobs:
 
       - name: 📋 Step - Extract changelog for GitHub Release
         id: changelog_extract
-        if: needs.changelog-generate.result == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
           VERSION="${{ steps.version.outputs.VERSION }}"
+          TAG="${{ steps.version.outputs.TAG }}"
 
           echo "⏳ Extracting changelog sections for GitHub Release..."
 
-          # Use changelog from changelog-generate phase if available
-          if [ -n "${{ env.CHANGELOG_SECTION }}" ]; then
-            echo "📋 Using changelog from changelog-generate phase"
-            echo "${{ env.CHANGELOG_SECTION }}" > /tmp/changelog-section.md
-          else
-            # Fallback: extract from existing changelog files
-            echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
-            echo "" >> /tmp/changelog-section.md
+          # Always extract from committed changelog files (env vars don't persist across jobs)
+          echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+          echo "" >> /tmp/changelog-section.md
 
-            # Extract CLI section
-            if [ -f "packages/opennextjs-cli/CHANGELOG.md" ]; then
-              CLI_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
-              if [ -n "$CLI_SECTION" ]; then
-                echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
-                echo "" >> /tmp/changelog-section.md
-                echo "$CLI_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
-                echo "" >> /tmp/changelog-section.md
-              fi
+          # Extract CLI section - try [VERSION] first, then [Unreleased] as fallback
+          if [ -f "packages/opennextjs-cli/CHANGELOG.md" ]; then
+            CLI_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
+            # If no version section found, try Unreleased
+            if [ -z "$CLI_SECTION" ] || [ "$(echo "$CLI_SECTION" | wc -l)" -lt 3 ]; then
+              CLI_SECTION=$(awk "/^## \[Unreleased\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
             fi
-
-            # Extract MCP section
-            if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ]; then
-              MCP_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
-              if [ -n "$MCP_SECTION" ]; then
-                echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
-                echo "" >> /tmp/changelog-section.md
-                echo "$MCP_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
-                echo "" >> /tmp/changelog-section.md
-              fi
-            fi
-
-            # If no sections, create generic one
-            if [ ! -s /tmp/changelog-section.md ] || [ "$(wc -l < /tmp/changelog-section.md)" -lt 5 ]; then
-              echo "Release of OpenNext.js CLI and MCP server packages." >> /tmp/changelog-section.md
+            if [ -n "$CLI_SECTION" ] && [ "$(echo "$CLI_SECTION" | wc -l)" -ge 3 ]; then
+              echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
+              echo "" >> /tmp/changelog-section.md
+              echo "$CLI_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
               echo "" >> /tmp/changelog-section.md
             fi
+          fi
+
+          # Extract MCP section - try [VERSION] first, then [Unreleased] as fallback
+          if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ]; then
+            MCP_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
+            # If no version section found, try Unreleased
+            if [ -z "$MCP_SECTION" ] || [ "$(echo "$MCP_SECTION" | wc -l)" -lt 3 ]; then
+              MCP_SECTION=$(awk "/^## \[Unreleased\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
+            fi
+            if [ -n "$MCP_SECTION" ] && [ "$(echo "$MCP_SECTION" | wc -l)" -ge 3 ]; then
+              echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
+              echo "" >> /tmp/changelog-section.md
+              echo "$MCP_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
+              echo "" >> /tmp/changelog-section.md
+            fi
+          fi
+
+          # If no sections found, create generic one
+          if [ ! -s /tmp/changelog-section.md ] || [ "$(wc -l < /tmp/changelog-section.md)" -lt 5 ]; then
+            echo "Release of OpenNext.js CLI and MCP server packages." >> /tmp/changelog-section.md
+            echo "" >> /tmp/changelog-section.md
+            echo "This release includes both @jsonbored/opennextjs-cli and @jsonbored/opennextjs-mcp packages." >> /tmp/changelog-section.md
+            echo "" >> /tmp/changelog-section.md
           fi
 
           # Set for GitHub release
@@ -958,6 +978,8 @@ jobs:
           echo "EOF" >> "$GITHUB_ENV"
 
           echo "✅ Changelog extracted for GitHub Release"
+          echo "   Preview:"
+          head -20 /tmp/changelog-section.md
 
       - name: 📋 Step - Publish CLI to npm (try OIDC first)
         id: publish-cli-oidc
@@ -967,8 +989,12 @@ jobs:
 
           echo "⏳ Publishing @jsonbored/opennextjs-cli to npm (trying OIDC first)..."
 
+          # Check if version already exists first (idempotent)
+          if npm view "@jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
+            echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping OIDC publish"
+            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
           # Try publishing with OIDC (if configured)
-          if npm publish --access public 2>&1; then
+          elif npm publish --access public 2>&1; then
             echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
             echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
           else
@@ -998,8 +1024,18 @@ jobs:
 
           # Configure npm to use token
           echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
-          npm publish --access public
+          # npm publish will fail if version already exists (idempotent behavior)
+          if npm publish --access public 2>&1; then
           echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
+          else
+            PUBLISH_ERROR=$?
+            if npm view "@jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
+              echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping publish"
+            else
+              echo "❌ npm publish failed with exit code $PUBLISH_ERROR" >&2
+              exit $PUBLISH_ERROR
+            fi
+          fi
 
       - name: 📋 Step - Publish MCP to npm (try OIDC first)
         id: publish-mcp-oidc
@@ -1009,8 +1045,12 @@ jobs:
 
           echo "⏳ Publishing @jsonbored/opennextjs-mcp to npm (trying OIDC first)..."
 
+          # Check if version already exists first (idempotent)
+          if npm view "@jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
+            echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping OIDC publish"
+            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
           # Try publishing with OIDC (if configured)
-          if npm publish --access public 2>&1; then
+          elif npm publish --access public 2>&1; then
             echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
             echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
           else
@@ -1040,8 +1080,18 @@ jobs:
             echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
           fi
 
-          npm publish --access public
+          # npm publish will fail if version already exists (idempotent behavior)
+          if npm publish --access public 2>&1; then
           echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
+          else
+            PUBLISH_ERROR=$?
+            if npm view "@jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
+              echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping publish"
+            else
+              echo "❌ npm publish failed with exit code $PUBLISH_ERROR" >&2
+              exit $PUBLISH_ERROR
+            fi
+          fi
 
           echo "" >&2
           echo "💡 After first release, set up OIDC trusted publishing for both packages:" >&2
@@ -1051,7 +1101,28 @@ jobs:
           echo "   4. Both use: repository JSONbored/opennextjs-cli, workflow .github/workflows/release.yml" >&2
           echo "   Then you can remove the NPM_TOKEN secret." >&2
 
+      - name: 📋 Step - Check if GitHub Release exists
+        id: check_release
+        run: |
+          TAG="${{ steps.version.outputs.TAG }}"
+          RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" || echo -e "\n404")
+          HTTP_CODE=$(echo "$RELEASE_RESPONSE" | tail -n1)
+
+          if [ "$HTTP_CODE" == "200" ]; then
+            echo "⚠️ Release $TAG already exists, will skip creation"
+            echo "EXISTS=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Release $TAG does not exist, will create"
+            echo "EXISTS=false" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
       - name: 📋 Step - Create GitHub Release
+        id: create_release
+        if: steps.check_release.outputs.EXISTS != 'true'
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: ${{ steps.version.outputs.TAG }}
