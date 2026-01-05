@@ -1,7 +1,7 @@
 # Release workflow automates the following:
-# - Manual releases (via workflow_dispatch)
-# - Automatic releases on tag pushes (v*.*.* tags)
-# - Actions on PR merges to main branch affecting release-monitored packages or workflow files
+# - Manual releases (via workflow_dispatch) - Full release: version bump → changelog generation → build → publish
+# - Automatic releases on tag pushes (v*.*.* tags) - Publish phase only
+# - Automatic changelog updates on PR merges to main - Updates unreleased changelogs only (no version bump)
 #
 # **Phases (may be run independently):**
 # - full-release: Complete release sequence (version bump → changelog update/generation → build → publish)
@@ -17,19 +17,16 @@
 # - publish-only: Only publish to npm (requires tag)
 #
 # **Triggers:**
-# 1. Manual workflow_dispatch - Full control via inputs
-# 2. Tag push v*.*.* - Automatic publish phase
-# 3. PR merge to main - Auto version-bump and changelog-update (if packages changed)
+# 1. Manual workflow_dispatch - Full release: version bump (auto from git-cliff) → changelog generation → build → publish
+# 2. Tag push v*.*.* - Automatic publish phase only (for existing tags)
+# 3. PR merge to main - Automatic changelog-update only (updates unreleased sections, no version bump)
 #
-# **First Release (NPM_TOKEN):**
-# - Requires NPM_TOKEN secret in GitHub repository
-# - Create token: npmjs.com → Account Settings → Access Tokens → Generate New Token (Automation)
-# - Add secret: GitHub repo → Settings → Secrets and variables → Actions → New repository secret
-# - Name: NPM_TOKEN
-#
-# **Subsequent Releases (OIDC - Recommended):**
-# - After first release, set up OIDC trusted publishing on npm
-# - Once OIDC is configured, NPM_TOKEN is no longer needed
+# **OIDC Trusted Publishing (Required):**
+# - Set up OIDC trusted publishing on npm for both packages
+# - Go to: https://www.npmjs.com/settings/JSONbored/automation
+# - Add trusted publisher for @jsonbored/opennextjs-cli
+# - Add trusted publisher for @jsonbored/opennextjs-mcp
+# - Both use: Repository JSONbored/opennextjs-cli, Workflow release.yml
 # - More secure than token-based authentication
 # - Automatic token rotation
 name: Release
@@ -82,10 +79,10 @@ jobs:
             BUMP_TYPE="auto"
             echo "🚀 Tag push trigger - Phase: $PHASE"
           elif [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ github.event.pull_request.merged }}" == "true" ]; then
-            PHASE="version-bump"
+            PHASE="changelog-update"
             VERSION=""
             BUMP_TYPE="auto"
-            echo "🚀 PR merge trigger - Phase: $PHASE (with changelog-update)"
+            echo "🚀 PR merge trigger - Phase: $PHASE (updates unreleased changelogs only, no version bump)"
           else
             echo "❌ Unsupported trigger: ${{ github.event_name }}" >&2
             exit 1
@@ -98,16 +95,13 @@ jobs:
             RUN_CHANGELOG_GENERATE="true"
             RUN_BUILD="true"
             RUN_PUBLISH="true"
-          elif [ "$PHASE" == "version-bump" ]; then
-            RUN_VERSION_BUMP="true"
-            RUN_CHANGELOG_UPDATE="false"
+          elif [ "$PHASE" == "changelog-update" ]; then
+            RUN_VERSION_BUMP="false"
+            RUN_CHANGELOG_UPDATE="true"
             RUN_CHANGELOG_GENERATE="false"
             RUN_BUILD="false"
             RUN_PUBLISH="false"
-            # PR merge also runs changelog-update
-            if [ "${{ github.event_name }}" == "pull_request" ]; then
-              RUN_CHANGELOG_UPDATE="true"
-            fi
+            # PR merge only updates unreleased changelogs, no version bump
           elif [ "$PHASE" == "changelog-update" ]; then
             RUN_VERSION_BUMP="false"
             RUN_CHANGELOG_UPDATE="true"
@@ -981,125 +975,57 @@ jobs:
           echo "   Preview:"
           head -20 /tmp/changelog-section.md
 
-      - name: 📋 Step - Publish CLI to npm (try OIDC first)
-        id: publish-cli-oidc
+      - name: 📋 Step - Publish CLI to npm (OIDC)
+        id: publish-cli
         working-directory: packages/opennextjs-cli
         run: |
           set -e
 
-          echo "⏳ Publishing @jsonbored/opennextjs-cli to npm (trying OIDC first)..."
+          echo "⏳ Publishing @jsonbored/opennextjs-cli to npm (using OIDC trusted publishing)..."
 
           # Check if version already exists first (idempotent)
           if npm view "@jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
-            echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping OIDC publish"
-            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
-          # Try publishing with OIDC (if configured)
-          elif npm publish --access public 2>&1; then
-            echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
-            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping publish"
           else
-          echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
-            echo "SUCCESS=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-        continue-on-error: true
-
-      - name: 📋 Step - Publish CLI to npm (fallback to NPM_TOKEN)
-        if: steps.publish-cli-oidc.outputs.SUCCESS != 'true'
-        working-directory: packages/opennextjs-cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -e
-
-          echo "⏳ Publishing @jsonbored/opennextjs-cli to npm (using NPM_TOKEN)..."
-
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "❌ NPM_TOKEN secret not found. For first release, you need to:" >&2
-            echo "   1. Create npm automation token: https://www.npmjs.com/settings/JSONbored/tokens" >&2
-            echo "   2. Add NPM_TOKEN secret to GitHub: Settings → Secrets and variables → Actions" >&2
-            echo "   3. Name the secret: NPM_TOKEN" >&2
-            exit 1
-          fi
-
-          # Configure npm to use token
-          echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
-          # npm publish will fail if version already exists (idempotent behavior)
-          if npm publish --access public 2>&1; then
-          echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
-          else
-            PUBLISH_ERROR=$?
-            if npm view "@jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
-              echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping publish"
+            # Publish using OIDC (trusted publishing must be configured on npm)
+            if npm publish --access public; then
+              echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
             else
-              echo "❌ npm publish failed with exit code $PUBLISH_ERROR" >&2
-              exit $PUBLISH_ERROR
+              echo "❌ npm publish failed" >&2
+              echo "   Make sure OIDC trusted publishing is configured:" >&2
+              echo "   1. Go to: https://www.npmjs.com/settings/JSONbored/automation" >&2
+              echo "   2. Add trusted publisher for @jsonbored/opennextjs-cli" >&2
+              echo "   3. Repository: JSONbored/opennextjs-cli" >&2
+              echo "   4. Workflow: release.yml" >&2
+              exit 1
             fi
           fi
 
-      - name: 📋 Step - Publish MCP to npm (try OIDC first)
-        id: publish-mcp-oidc
+      - name: 📋 Step - Publish MCP to npm (OIDC)
+        id: publish-mcp
         working-directory: packages/opennextjs-mcp
         run: |
           set -e
 
-          echo "⏳ Publishing @jsonbored/opennextjs-mcp to npm (trying OIDC first)..."
+          echo "⏳ Publishing @jsonbored/opennextjs-mcp to npm (using OIDC trusted publishing)..."
 
           # Check if version already exists first (idempotent)
           if npm view "@jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
-            echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping OIDC publish"
-            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
-          # Try publishing with OIDC (if configured)
-          elif npm publish --access public 2>&1; then
-            echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
-            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping publish"
           else
-          echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
-            echo "SUCCESS=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-        continue-on-error: true
-
-      - name: 📋 Step - Publish MCP to npm (fallback to NPM_TOKEN)
-        if: steps.publish-mcp-oidc.outputs.SUCCESS != 'true'
-        working-directory: packages/opennextjs-mcp
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -e
-
-          echo "⏳ Publishing @jsonbored/opennextjs-mcp to npm (using NPM_TOKEN)..."
-
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "❌ NPM_TOKEN secret not found" >&2
-            exit 1
-          fi
-
-          # Configure npm to use token (if not already configured)
-          if [ ! -f ~/.npmrc ]; then
-            echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
-          fi
-
-          # npm publish will fail if version already exists (idempotent behavior)
-          if npm publish --access public 2>&1; then
-          echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
-          else
-            PUBLISH_ERROR=$?
-            if npm view "@jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }}" version >/dev/null 2>&1; then
-              echo "⚠️ Version ${{ steps.version.outputs.VERSION }} already exists on npm, skipping publish"
+            # Publish using OIDC (trusted publishing must be configured on npm)
+            if npm publish --access public; then
+              echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
             else
-              echo "❌ npm publish failed with exit code $PUBLISH_ERROR" >&2
-              exit $PUBLISH_ERROR
+              echo "❌ npm publish failed" >&2
+              echo "   Make sure OIDC trusted publishing is configured:" >&2
+              echo "   1. Go to: https://www.npmjs.com/settings/JSONbored/automation" >&2
+              echo "   2. Add trusted publisher for @jsonbored/opennextjs-mcp" >&2
+              echo "   3. Repository: JSONbored/opennextjs-cli" >&2
+              echo "   4. Workflow: release.yml" >&2
+              exit 1
             fi
           fi
-
-          echo "" >&2
-          echo "💡 After first release, set up OIDC trusted publishing for both packages:" >&2
-          echo "   1. Go to: https://www.npmjs.com/settings/JSONbored/automation" >&2
-          echo "   2. Add trusted publisher for @jsonbored/opennextjs-cli" >&2
-          echo "   3. Add trusted publisher for @jsonbored/opennextjs-mcp" >&2
-          echo "   4. Both use: repository JSONbored/opennextjs-cli, workflow .github/workflows/release.yml" >&2
-          echo "   Then you can remove the NPM_TOKEN secret." >&2
 
       - name: 📋 Step - Check if GitHub Release exists
         id: check_release
@@ -1112,8 +1038,11 @@ jobs:
           HTTP_CODE=$(echo "$RELEASE_RESPONSE" | tail -n1)
 
           if [ "$HTTP_CODE" == "200" ]; then
-            echo "⚠️ Release $TAG already exists, will skip creation"
+            echo "⚠️ Release $TAG already exists, will update with new changelog"
             echo "EXISTS=true" >> "$GITHUB_OUTPUT"
+            # Extract release ID for updating
+            RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+            echo "RELEASE_ID=$RELEASE_ID" >> "$GITHUB_OUTPUT"
           else
             echo "✅ Release $TAG does not exist, will create"
             echo "EXISTS=false" >> "$GITHUB_OUTPUT"
@@ -1136,6 +1065,50 @@ jobs:
             ${{ env.CHANGELOG_SECTION }}
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Step - Update existing GitHub Release (idempotent)
+        id: update_release
+        if: steps.check_release.outputs.EXISTS == 'true'
+        run: |
+          set -e
+
+          TAG="${{ steps.version.outputs.TAG }}"
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          RELEASE_ID="${{ steps.check_release.outputs.RELEASE_ID }}"
+
+          echo "⏳ Updating existing GitHub Release $TAG with latest changelog..."
+
+          # Build release body with changelog (read from env var set by changelog_extract step)
+          {
+            echo "## Packages Released"
+            echo ""
+            echo "- \`@jsonbored/opennextjs-cli@$VERSION\`"
+            echo "- \`@jsonbored/opennextjs-mcp@$VERSION\`"
+            echo ""
+            echo "${{ env.CHANGELOG_SECTION }}"
+          } > /tmp/release-body.md
+
+          # Update release via GitHub API (idempotent - safe to run multiple times)
+          RELEASE_BODY_JSON=$(jq -Rs . /tmp/release-body.md)
+          UPDATE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X PATCH \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": $RELEASE_BODY_JSON}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" || echo -e "\n000")
+
+          HTTP_CODE=$(echo "$UPDATE_RESPONSE" | tail -n1)
+
+          if [ "$HTTP_CODE" == "200" ]; then
+            echo "✅ GitHub Release $TAG updated with latest changelog"
+          else
+            echo "⚠️ Failed to update release (HTTP $HTTP_CODE), but this is non-critical"
+            echo "   You can manually update the release on GitHub if needed"
+          fi
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
