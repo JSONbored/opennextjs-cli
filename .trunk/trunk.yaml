@@ -31,6 +31,25 @@ plugins:
 actions:
   enabled:
     - trunk-announce
-    - trunk-check-pre-push
-    - trunk-fmt-pre-commit
+    - trunk-check-pre-push # Runs linting (ESLint, actionlint, etc.)
+    - trunk-fmt-pre-commit # Formats code before commit
     - trunk-upgrade-available
+    - type-check-pre-push # TypeScript type checking
+    - build-pre-push # Build verification
+    - test-pre-push # Test suite
+  definitions:
+    - id: type-check-pre-push
+      description: Run TypeScript type checking before push
+      triggers:
+        - git_hooks: [pre-push]
+      run: pnpm type-check
+    - id: build-pre-push
+      description: Build project to verify compilation before push
+      triggers:
+        - git_hooks: [pre-push]
+      run: pnpm build
+    - id: test-pre-push
+      description: Run test suite before push
+      triggers:
+        - git_hooks: [pre-push]
+      run: pnpm test

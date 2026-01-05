@@ -32,6 +32,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "workflow:validate": "trunk check .github/workflows",
     "changelog:package": "tsx scripts/generate-package-changelog.ts",
     "changelog:cli": "pnpm changelog:package opennextjs-cli",
     "changelog:mcp": "pnpm changelog:package opennextjs-mcp",
