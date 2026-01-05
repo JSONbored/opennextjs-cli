@@ -1,15 +1,33 @@
-name: CI
+# Continuous Integration Workflow
+#
+# Runs CI checks on all commits and PRs to main branch.
+# Triggers lint, type check, build, and test steps.
+name: Continuous Integration
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # checkov:skip=CKV2_GHA_1:permissions:write-all is required for CI workflows to update commit statuses
+    permissions:
+      actions: read # Read-only access to workflow runs for CI
+      checks: read # Read-only access to check runs
+      contents: read # Read-only access to repository contents
+      deployments: none # No deployment access needed
+      id-token: none # No npm publish needed
+      issues: none # No issue access needed
+      packages: none # No package access needed
+      pull-requests: read # Read-only access to PRs
+      repository-projects: none # No project access needed
+      security-events: none # No security events access needed for CI
+      statuses: write # Required to update commit statuses
 
     steps:
       - name: Checkout repository
@@ -22,7 +40,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

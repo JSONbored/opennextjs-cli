@@ -1,5 +1,3 @@
-#!/usr/bin/env tsx
-
 /**
  * Version Bump Script for OpenNext.js Packages
  *
@@ -98,13 +96,13 @@ function bumpVersion(type: 'major' | 'minor' | 'patch'): string {
   // Update MCP package.json
   const mcpPackageJson = JSON.parse(readFileSync(MCP_PACKAGE_JSON_PATH, 'utf8'));
   mcpPackageJson.version = newVersion;
-  
+
   // Update MCP's dependency on CLI to match new version
   if (mcpPackageJson.dependencies && mcpPackageJson.dependencies['@jsonbored/opennextjs-cli']) {
     // Use caret to allow patch updates
     mcpPackageJson.dependencies['@jsonbored/opennextjs-cli'] = `^${newVersion}`;
   }
-  
+
   writeFileSync(MCP_PACKAGE_JSON_PATH, JSON.stringify(mcpPackageJson, null, 2) + '\n');
 
   return newVersion;

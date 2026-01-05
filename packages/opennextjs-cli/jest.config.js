@@ -1,3 +1,11 @@
+/**
+ * Jest Configuration for OpenNext.js CLI
+ *
+ * Configuration for running tests with Jest for the OpenNext.js CLI.
+ * Uses ts-jest for TypeScript support and preset for default ES modules.
+ *
+ * @see https://jestjs.io/docs/configuration
+ */
 /** @type {import('jest').Config} */
 export default {
   preset: 'ts-jest/presets/default-esm',

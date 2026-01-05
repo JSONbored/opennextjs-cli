@@ -4,15 +4,18 @@ import tseslint from 'typescript-eslint';
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  {
+  ...tseslint.configs.recommendedTypeChecked.map((config) => ({
+    ...config,
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
+      ...config.languageOptions,
       parserOptions: {
+        ...config.languageOptions?.parserOptions,
         project: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
-  },
+  })),
   {
     files: ['**/*.ts'],
     rules: {
@@ -41,13 +44,19 @@ export default tseslint.config(
   },
   {
     // p.tasks() requires async functions, but some tasks may not use await
-    files: [
-      'packages/opennextjs-cli/src/commands/**/*.ts',
-    ],
+    files: ['packages/opennextjs-cli/src/commands/**/*.ts'],
     rules: {
       '@typescript-eslint/require-await': 'off',
       // Allow missing return types for task functions (they're inferred from p.tasks())
       '@typescript-eslint/explicit-function-return-type': 'off',
+    },
+  },
+  {
+    files: ['**/*.js', '**/*.mjs'],
+    languageOptions: {
+      parserOptions: {
+        project: false,
+      },
     },
   },
   {
@@ -56,6 +65,7 @@ export default tseslint.config(
       'dist/**',
       '.turbo/**',
       '*.config.js',
+      '**/*.config.js',
       '*.config.mjs',
       'scripts/**',
     ],

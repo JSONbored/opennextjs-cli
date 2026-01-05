@@ -30,72 +30,56 @@ on:
     types: [closed]
     branches: [main]
     paths:
-      - 'packages/opennextjs-cli/**'
-      - 'packages/opennextjs-mcp/**'
-      - '.github/workflows/version-bump.yml'
-      - 'scripts/bump-version.ts'
-  workflow_dispatch:
-    inputs:
-      bump_type:
-        description: 'Version bump type (major, minor, patch, or "auto" to detect from commits)'
-        required: false
-        default: 'auto'
-        type: choice
-        options:
-          - auto
-          - major
-          - minor
-          - patch
-
-# YAML anchors for reusable configurations
-x-common-setup: &common-setup
-  - name: Checkout repository
-    uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
-    with:
-      fetch-depth: 0 # Full history for git-cliff
-      token: ${{ secrets.GITHUB_TOKEN }}
-  - name: Setup pnpm
-    uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
-  - name: Setup Node.js
-    uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-    with:
-      node-version: '22'
-      cache: 'pnpm'
-  - name: Install dependencies
-    run: pnpm install --frozen-lockfile
-  - name: Setup git-cliff
-    uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
-    with:
-      version: latest
-
-x-git-config: &git-config
-  - name: Configure git
-    run: |
-      git config user.name "github-actions[bot]"
-      git config user.email "github-actions[bot]@users.noreply.github.com"
-
-x-git-cliff-exclude-paths: &git-cliff-exclude-paths
-  --exclude-path "**/*.md"
-  --exclude-path "**/.github/**"
-  --exclude-path "**/.cursor/**"
+      - packages/opennextjs-cli/**
+      - packages/opennextjs-mcp/**
+      - .github/workflows/version-bump.yml
+      - scripts/bump-version.ts
+  workflow_dispatch: {}
 
 # Only run when PR is merged (not just closed) OR when manually triggered
 jobs:
   version-bump:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
+
     # Skip if PR was closed without merging (but allow workflow_dispatch)
     if: |
       (github.event_name == 'workflow_dispatch') ||
       (github.event.pull_request.merged == true)
 
+    # checkov:skip=CKV_GHA_3:contents:write is required to commit and push version bumps
     permissions:
+      actions: read
+      checks: read
+      deployments: none
+      issues: none
+      packages: none
+      pull-requests: none
+      repository-projects: none
+      security-events: none
+      statuses: read
       contents: write # Required to commit and push tags
-      id-token: write # Required for npm publish (OIDC)
+      id-token: none # No npm publish needed
 
     steps:
-      <<: *common-setup
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
+        with:
+          fetch-depth: 0 # Full history for git-cliff
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Setup git-cliff
+        uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
+        with:
+          version: latest
 
       - name: Lint
         run: pnpm lint
@@ -111,7 +95,7 @@ jobs:
         run: |
           # Get the last version tag (vX.Y.Z format)
           LAST_TAG=$(git describe --tags --match 'v*.*.*' --abbrev=0 2>/dev/null || echo "")
-          
+
           if [ -z "$LAST_TAG" ]; then
             echo "No previous tag found, starting from v0.1.0"
             CURRENT_VERSION="0.1.0"
@@ -121,7 +105,7 @@ jobs:
             CURRENT_VERSION="${LAST_TAG#v}"
             TAG="$LAST_TAG"
           fi
-          
+
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "Last tag: $TAG (version: $CURRENT_VERSION)"
@@ -134,7 +118,7 @@ jobs:
             echo "HAS_CHANGES=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Check if there are any commits since last tag
           if git rev-list --count "${{ steps.last_tag.outputs.TAG }}"..HEAD > /dev/null 2>&1; then
             COMMIT_COUNT=$(git rev-list --count "${{ steps.last_tag.outputs.TAG }}"..HEAD)
@@ -154,11 +138,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          
-          BUMP_TYPE="${{ github.event.inputs.bump_type || 'auto' }}"
+
+          BUMP_TYPE="auto"
           CURRENT_VERSION="${{ steps.last_tag.outputs.CURRENT_VERSION }}"
           LAST_TAG="${{ steps.last_tag.outputs.TAG }}"
-          
+
           if [ "$BUMP_TYPE" == "auto" ]; then
             # Use git-cliff to determine version bump from commits
             if [ -z "$LAST_TAG" ]; then
@@ -186,19 +170,19 @@ jobs:
               exit 1
             fi
           fi
-          
+
           # Validate version
           if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "❌ Error: Invalid version '$NEW_VERSION'" >&2
             exit 1
           fi
-          
+
           if [ "$NEW_VERSION" == "$CURRENT_VERSION" ]; then
             echo "⚠️ No version bump needed"
             echo "SKIP_RELEASE=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Version: $CURRENT_VERSION → $NEW_VERSION"
 
@@ -209,33 +193,33 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          
+
           NEW_VERSION="${{ steps.version_calc.outputs.NEW_VERSION }}"
-          
+
           # Generate CLI changelog (writes directly to packages/opennextjs-cli/CHANGELOG.md)
           # Use --unreleased because we're generating for a NEW version that doesn't have a tag yet
           echo "📝 Generating CLI changelog..."
           pnpm changelog:package opennextjs-cli --unreleased || \
             echo "⚠️ CLI changelog generation failed" >&2
-          
+
           # Generate MCP changelog (writes directly to packages/opennextjs-mcp/CHANGELOG.md)
           # Use --unreleased because we're generating for a NEW version that doesn't have a tag yet
           echo "📝 Generating MCP changelog..."
           pnpm changelog:package opennextjs-mcp --unreleased || \
             echo "⚠️ MCP changelog generation failed" >&2
-          
+
           # Check if changelogs were generated
           CLI_UPDATED=false
           MCP_UPDATED=false
-          
+
           if [ -f "packages/opennextjs-cli/CHANGELOG.md" ] && grep -Fq "## \[Unreleased\]" "packages/opennextjs-cli/CHANGELOG.md"; then
             CLI_UPDATED=true
           fi
-          
+
           if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ] && grep -Fq "## \[Unreleased\]" "packages/opennextjs-mcp/CHANGELOG.md"; then
             MCP_UPDATED=true
           fi
-          
+
           if [ "$CLI_UPDATED" = "true" ] || [ "$MCP_UPDATED" = "true" ]; then
             echo "CHANGELOG_UPDATED=true" >> $GITHUB_OUTPUT
             echo "✅ Changelogs generated:"
@@ -251,12 +235,12 @@ jobs:
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
         run: |
           set -e
-          
+
           NEW_VERSION="${{ steps.version_calc.outputs.NEW_VERSION }}"
-          
+
           # Use the bump-version script to update both packages
           pnpm exec tsx scripts/bump-version.ts patch 2>/dev/null || true
-          
+
           # Manually update versions (more reliable)
           node -e "
             const fs = require('fs');
@@ -280,7 +264,7 @@ jobs:
             
             fs.writeFileSync(mcpPath, JSON.stringify(mcpPkg, null, 2) + '\n');
           "
-          
+
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Updated both packages to version $NEW_VERSION"
 
@@ -294,18 +278,18 @@ jobs:
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true' && steps.changelog.outputs.CHANGELOG_UPDATED == 'true'
         run: |
           set -e
-          
+
           NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
-          
+
           # Commit version and changelog changes
           git add packages/opennextjs-cli/package.json packages/opennextjs-mcp/package.json
           git add packages/opennextjs-cli/CHANGELOG.md packages/opennextjs-mcp/CHANGELOG.md 2>/dev/null || true
           git commit -m "chore: bump version to $NEW_VERSION" || exit 0
-          
+
           # Create tag
           git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
-          
+
           # Push commit and tag
           git push origin main "v$NEW_VERSION"
-          
+
           echo "✅ Committed and tagged v$NEW_VERSION"

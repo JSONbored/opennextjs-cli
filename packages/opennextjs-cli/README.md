@@ -70,6 +70,7 @@ onjs init my-project
 ```
 
 This will:
+
 - Create a new Next.js project with TypeScript
 - Configure OpenNext.js for Cloudflare Workers
 - Set up `wrangler.toml` and `open-next.config.ts`
@@ -86,6 +87,7 @@ onjs add
 ```
 
 This will:
+
 - Detect your existing Next.js project
 - Add OpenNext.js Cloudflare configuration
 - Install required dependencies
@@ -116,6 +118,7 @@ opennextjs-cli init --next-version 15.1.0    # Specify Next.js version
 ```
 
 **Options:**
+
 - `-y, --yes` - Skip all prompts, use defaults
 - `--next-version <version>` - Specify Next.js version (default: latest 15.x)
 - `--worker-name <name>` - Cloudflare Worker name
@@ -123,6 +126,7 @@ opennextjs-cli init --next-version 15.1.0    # Specify Next.js version
 - `--template <templates>` - Comma-separated list of templates (future feature)
 
 **What it creates:**
+
 - New Next.js project directory
 - `wrangler.toml` configuration
 - `open-next.config.ts` configuration
@@ -144,6 +148,7 @@ opennextjs-cli add --dry-run                 # Preview without changes
 ```
 
 **Options:**
+
 - `-y, --yes` - Skip all prompts
 - `--worker-name <name>` - Cloudflare Worker name
 - `--caching-strategy <strategy>` - Caching strategy
@@ -152,6 +157,7 @@ opennextjs-cli add --dry-run                 # Preview without changes
 - `--dry-run` - Preview changes without applying
 
 **What it does:**
+
 - Detects existing Next.js project
 - Adds `wrangler.toml` configuration
 - Adds `open-next.config.ts` configuration
@@ -172,12 +178,14 @@ opennextjs-cli config --yes                  # Skip prompts
 ```
 
 **Options:**
+
 - `-y, --yes` - Skip prompts
 - `--worker-name <name>` - Update worker name
 - `--caching-strategy <strategy>` - Update caching strategy
 - `--reset` - Reset configuration to defaults
 
 **What it updates:**
+
 - `wrangler.toml` (worker name, account ID, environments)
 - `open-next.config.ts` (caching strategy, database options, etc.)
 
@@ -193,6 +201,7 @@ opennextjs-cli status --json                 # Output as JSON
 ```
 
 **Shows:**
+
 - Next.js version and project detection
 - OpenNext.js Cloudflare configuration status
 - Installed dependencies
@@ -203,6 +212,7 @@ opennextjs-cli status --json                 # Output as JSON
 - Monorepo information (if applicable)
 
 **Output Format:**
+
 - Structured sections using `@clack/prompts`
 - Clear visual indicators (✓, ✗, ▲, ■)
 - Grouped information for easy reading
@@ -217,6 +227,7 @@ opennextjs-cli validate --json               # Output as JSON
 ```
 
 **Checks:**
+
 - `wrangler.toml` configuration (exists, syntax, required fields)
 - `open-next.config.ts` configuration (exists, syntax, exports)
 - `package.json` scripts and dependencies
@@ -224,6 +235,7 @@ opennextjs-cli validate --json               # Output as JSON
 - Project structure (Next.js detection, required files)
 
 **Output:**
+
 - ✓ Passing checks (green checkmarks)
 - ⚠ Warnings with documentation links (yellow warning icons)
 - ✗ Errors with documentation links (red cross marks)
@@ -231,7 +243,8 @@ opennextjs-cli validate --json               # Output as JSON
 - Documentation URLs for warnings and errors
 
 **Example Output:**
-```
+
+```bash
 ⚠  wrangler.toml account_id: wrangler.toml missing account_id
    Fix: Add "account_id = \"your-account-id\"" to wrangler.toml
    📖 Docs: https://developers.cloudflare.com/workers/configuration/configuration-files/#account_id
@@ -247,6 +260,7 @@ opennextjs-cli doctor --fix                 # Auto-fix issues
 ```
 
 **Checks:**
+
 - Node.js version (must be 18+)
 - Package manager installation
 - Wrangler CLI availability
@@ -257,6 +271,7 @@ opennextjs-cli doctor --fix                 # Auto-fix issues
 - Common errors and misconfigurations
 
 **Auto-Fix:**
+
 - With `--fix` flag, automatically fixes issues where possible
 - Creates backups before making changes
 - Shows what was fixed
@@ -271,6 +286,7 @@ opennextjs-cli setup --global              # Global settings
 ```
 
 **Configures:**
+
 - Default package manager
 - Default caching strategy
 - Auto-backup preferences
@@ -278,6 +294,7 @@ opennextjs-cli setup --global              # Global settings
 - Verbose logging
 
 **Configuration Files:**
+
 - Global: `~/.opennextjs-cli/config.json`
 - Project: `.opennextjs-cli.json` (project root)
 
@@ -297,12 +314,14 @@ opennextjs-cli deploy --skip-validation   # Skip validation before deploy
 ```
 
 **Options:**
+
 - `--env <environment>` - Deploy to specific environment (default: production)
 - `--preview` - Deploy as preview (not production)
 - `--dry-run` - Show deployment plan without deploying
 - `--skip-validation` - Skip configuration validation before deployment
 
 **Process:**
+
 1. Validates configuration (unless `--skip-validation`)
 2. Builds the project
 3. Deploys to Cloudflare Workers
@@ -319,10 +338,12 @@ opennextjs-cli preview --env production    # Use production environment
 ```
 
 **Options:**
+
 - `--port <number>` - Custom port (default: 8787)
 - `--env <environment>` - Use specific environment
 
 **What it does:**
+
 - Starts `wrangler dev` server
 - Shows preview URL
 - Runs until interrupted (Ctrl+C)
@@ -339,11 +360,13 @@ opennextjs-cli update --package <name>    # Update specific package
 ```
 
 **Options:**
+
 - `--check` - Check for updates without installing
 - `--force` - Force update even if already latest
 - `--package <name>` - Update specific package only
 
 **What it updates:**
+
 - `@opennextjs/cloudflare` package
 - `wrangler` package
 - Configuration files if needed
@@ -363,6 +386,7 @@ opennextjs-cli env set KEY value --secret  # Set as Cloudflare secret
 ```
 
 **Subcommands:**
+
 - `env setup` - Interactive environment setup
   - Prompts for Cloudflare Account ID
   - Prompts for API Token (optional, for secrets)
@@ -391,6 +415,7 @@ opennextjs-cli cloudflare logout           # Clear authentication
 ```
 
 **Subcommands:**
+
 - `cloudflare login` - Authenticate with Cloudflare
   - Opens browser for OAuth login
   - Stores credentials locally
@@ -418,10 +443,12 @@ opennextjs-cli migrate --dry-run           # Preview migration
 ```
 
 **Options:**
+
 - `--from <platform>` - Source platform: vercel or netlify (auto-detected if not specified)
 - `--dry-run` - Preview migration without making changes
 
 **What it does:**
+
 1. Detects source platform (Vercel/Netlify) or uses `--from` flag
 2. Reads existing configuration files (`vercel.json`, `netlify.toml`)
 3. Converts configuration to OpenNext.js Cloudflare format
@@ -431,6 +458,7 @@ opennextjs-cli migrate --dry-run           # Preview migration
 7. Creates backups of original files
 
 **Migration Process:**
+
 - Converts `vercel.json` → `wrangler.toml` + `open-next.config.ts`
 - Converts `netlify.toml` → `wrangler.toml` + `open-next.config.ts`
 - Migrates environment variables
@@ -448,12 +476,14 @@ opennextjs-cli mcp setup
 ```
 
 **What it does:**
+
 - Detects MCP configuration file location
 - Adds `@jsonbored/opennextjs-mcp` server configuration
 - Verifies the setup
 - Provides instructions for restarting AI tool
 
 **Configuration Files:**
+
 - Cursor: `~/.cursor/mcp.json`
 - Claude Desktop: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
@@ -468,6 +498,7 @@ opennextjs-cli completion fish             # Generate fish completion
 ```
 
 **Usage:**
+
 ```bash
 # Bash
 opennextjs-cli completion bash > ~/.bash_completion.d/opennextjs-cli
@@ -554,11 +585,11 @@ export default {
 
 The CLI supports multiple caching strategies for different use cases:
 
-| Strategy | Description | Use Case |
-|----------|-------------|----------|
-| `static-assets` | SSG-only, no R2 needed | Simple static sites |
-| `r2` | R2 Incremental Cache | Most Next.js apps (recommended) |
-| `r2-do-queue` | ISR with time-based revalidation | Dynamic content with ISR |
+| Strategy                | Description                               | Use Case                        |
+| ----------------------- | ----------------------------------------- | ------------------------------- |
+| `static-assets`         | SSG-only, no R2 needed                    | Simple static sites             |
+| `r2`                    | R2 Incremental Cache                      | Most Next.js apps (recommended) |
+| `r2-do-queue`           | ISR with time-based revalidation          | Dynamic content with ISR        |
 | `r2-do-queue-tag-cache` | Full-featured with on-demand revalidation | Complex apps with on-demand ISR |
 
 ## Safety Features
@@ -596,12 +627,14 @@ The CLI automatically detects monorepo structures:
 - ✅ **Turborepo** - Detected and supported
 
 **How it works:**
+
 - Detects monorepo root automatically
 - Finds Next.js projects within workspaces
 - Detects Cloudflare Workers in monorepo
 - Works correctly from any directory within monorepo
 
 **Example:**
+
 ```bash
 # From monorepo root
 cd my-monorepo
@@ -624,11 +657,13 @@ import { detectProjectRoot } from '@jsonbored/opennextjs-cli/utils';
 ```
 
 **Available Exports:**
+
 - `./utils` - Utility functions (project detection, validation, config reading)
 - `./schemas` - Zod schemas for configuration validation
 - `./platforms/cloudflare` - Cloudflare platform utilities
 
 **Key Utilities:**
+
 - `detectNextJsProject()` - Detect Next.js projects
 - `detectProjectRoot()` - Detect project root (monorepo-aware)
 - `validateConfiguration()` - Validate OpenNext.js configuration
@@ -739,27 +774,33 @@ opennextjs-cli env set API_KEY "secret" --secret
 ### Common Issues
 
 **"No Next.js project detected"**
+
 - Ensure you're in a Next.js project directory
 - Check that `package.json` exists and has `next` dependency
 - In monorepos, ensure you're in the correct workspace
 
 **"Version mismatch"**
+
 - Ensure Node.js version is 18+
 - Check with: `node --version`
 
 **"Cloudflare authentication failed"**
+
 - Run: `opennextjs-cli cloudflare login`
 - Or: `wrangler login`
 
 **"Package manager not detected"**
+
 - Install pnpm: `npm install -g pnpm`
 - Or use npm/yarn/bun
 
 **"Monorepo detection failed"**
+
 - Ensure `pnpm-workspace.yaml` or `package.json` workspaces is configured
 - Try running from monorepo root
 
 **"Validation warnings/errors"**
+
 - Check the documentation links provided in warnings
 - Run `opennextjs-cli doctor --fix` to auto-fix issues
 - Review the fix suggestions in the output

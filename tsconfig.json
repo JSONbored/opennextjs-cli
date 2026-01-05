@@ -25,9 +25,6 @@
     "verbatimModuleSyntax": true
   },
   "files": [],
-  "references": [
-    { "path": "./packages/opennextjs-cli" },
-    { "path": "./packages/opennextjs-mcp" }
-  ],
+  "references": [{ "path": "./packages/opennextjs-cli" }, { "path": "./packages/opennextjs-mcp" }],
   "exclude": ["node_modules", "dist", ".turbo"]
 }

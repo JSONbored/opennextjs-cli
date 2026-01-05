@@ -21,7 +21,17 @@
  */
 
 import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, openSync, closeSync, ftruncateSync, readSync, writeSync, constants } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  openSync,
+  closeSync,
+  ftruncateSync,
+  readSync,
+  writeSync,
+  constants,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,7 +48,7 @@ interface GenerateOptions {
 function parseArgs(): GenerateOptions {
   const args = process.argv.slice(2);
   const packageName = args[0];
-  
+
   if (!packageName) {
     console.error('❌ Error: Package name is required');
     console.error('\nUsage: pnpm changelog:package <package-name> [--tag <tag>] [--unreleased]');
@@ -46,7 +56,7 @@ function parseArgs(): GenerateOptions {
   }
 
   const options: GenerateOptions = { packageName };
-  
+
   for (let i = 1; i < args.length; i++) {
     if (args[i] === '--tag' && args[i + 1]) {
       options.tag = args[i + 1];
@@ -87,7 +97,10 @@ function generateChangelog(options: GenerateOptions): void {
   } else {
     // Default: use latest tag
     try {
-      const latestTag = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
+      const latestTag = execSync('git describe --tags --abbrev=0', {
+        cwd: ROOT,
+        encoding: 'utf8',
+      }).trim();
       gitCliffFlags = `--tag ${latestTag} --latest`;
       console.log(`📝 Using latest tag: ${latestTag}`);
     } catch {
@@ -105,7 +118,9 @@ function generateChangelog(options: GenerateOptions): void {
     '**/node_modules/**',
     '**/dist/**',
     '**/.git/**',
-  ].map(path => `--exclude-path "${path}"`).join(' ');
+  ]
+    .map((path) => `--exclude-path "${path}"`)
+    .join(' ');
 
   console.log(`📝 Generating changelog for ${packageName}...`);
   console.log(`   Using: ${gitCliffFlags}`);
@@ -131,7 +146,7 @@ function generateChangelog(options: GenerateOptions): void {
 
 /**
  * Prepends a new changelog entry to the package's CHANGELOG.md file.
- * 
+ *
  * This follows the same pattern as claudepro-directory:
  * - Removes header from git-cliff output (we already have one)
  * - Inserts entry after the `# Changelog` header
@@ -188,7 +203,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
           break;
         }
       }
-      
+
       // Insert after header
       lines.splice(insertIndex, 0, entryWithoutHeader);
       newContent = lines.join('\n');

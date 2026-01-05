@@ -1,5 +1,3 @@
-# Reusable Workflow: Common Setup Steps
-#
 # Provides reusable setup steps for Node.js, pnpm, and git-cliff
 # that can be called from other workflows to reduce duplication.
 #
@@ -17,28 +15,25 @@ on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version to use'
+        description: Node.js version to use
         required: false
         type: string
         default: '22'
       install-deps:
-        description: 'Whether to install dependencies'
+        description: Whether to install dependencies
         required: false
         type: boolean
         default: true
       setup-git-cliff:
-        description: 'Whether to setup git-cliff'
+        description: Whether to setup git-cliff
         required: false
         type: boolean
         default: false
       fetch-depth:
-        description: 'Git fetch depth (0 for full history)'
+        description: Git fetch depth (0 for full history)
         required: false
         type: number
         default: 0
-    secrets:
-      GITHUB_TOKEN:
-        required: false
 
 jobs:
   setup:
@@ -56,7 +51,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'pnpm'
+          cache: pnpm
 
       - name: Install dependencies
         if: inputs.install-deps == true

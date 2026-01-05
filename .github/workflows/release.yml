@@ -48,17 +48,14 @@ on:
   push:
     tags:
       - v*.*.* # Matches v1.2.3
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Version to release (e.g., 0.1.0). Leave empty to use package.json version.
-        required: false
+  workflow_dispatch: {}
 
 jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # checkov:skip=CKV_GHA_3:contents:write is required for creating GitHub releases and pushing tags
     permissions:
       actions: read
       checks: read
@@ -111,14 +108,10 @@ jobs:
       - name: Extract version from tag or input
         id: version
         run: |
-          # For workflow_dispatch, use input version or package.json version
+          # For workflow_dispatch, use package.json version
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            if [ -n "${{ github.event.inputs.version }}" ]; then
-              VERSION="${{ github.event.inputs.version }}"
-            else
-              # Read from CLI package.json
-              VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
-            fi
+            # Read from CLI package.json
+            VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
             # Remove 'v' prefix if present
             VERSION="${VERSION#v}"
             TAG="v$VERSION"
