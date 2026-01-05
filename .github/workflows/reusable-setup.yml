@@ -1,0 +1,69 @@
+# Reusable Workflow: Common Setup Steps
+#
+# Provides reusable setup steps for Node.js, pnpm, and git-cliff
+# that can be called from other workflows to reduce duplication.
+#
+# Usage:
+#   jobs:
+#     my-job:
+#       uses: ./.github/workflows/reusable-setup.yml
+#       with:
+#         node-version: '22'
+#         install-deps: true
+#         setup-git-cliff: true
+name: Reusable Setup
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version to use'
+        required: false
+        type: string
+        default: '22'
+      install-deps:
+        description: 'Whether to install dependencies'
+        required: false
+        type: boolean
+        default: true
+      setup-git-cliff:
+        description: 'Whether to setup git-cliff'
+        required: false
+        type: boolean
+        default: false
+      fetch-depth:
+        description: 'Git fetch depth (0 for full history)'
+        required: false
+        type: number
+        default: 0
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: inputs.install-deps == true
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup git-cliff
+        if: inputs.setup-git-cliff == true
+        uses: kenji-miyake/setup-git-cliff@v1
+        with:
+          version: latest

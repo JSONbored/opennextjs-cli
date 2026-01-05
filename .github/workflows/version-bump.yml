@@ -47,6 +47,38 @@ on:
           - minor
           - patch
 
+# YAML anchors for reusable configurations
+x-common-setup: &common-setup
+  - name: Checkout repository
+    uses: actions/checkout@v6
+    with:
+      fetch-depth: 0 # Full history for git-cliff
+      token: ${{ secrets.GITHUB_TOKEN }}
+  - name: Setup pnpm
+    uses: pnpm/action-setup@v4
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '22'
+      cache: 'pnpm'
+  - name: Install dependencies
+    run: pnpm install --frozen-lockfile
+  - name: Setup git-cliff
+    uses: kenji-miyake/setup-git-cliff@v1
+    with:
+      version: latest
+
+x-git-config: &git-config
+  - name: Configure git
+    run: |
+      git config user.name "github-actions[bot]"
+      git config user.email "github-actions[bot]@users.noreply.github.com"
+
+x-git-cliff-exclude-paths: &git-cliff-exclude-paths
+  --exclude-path "**/*.md"
+  --exclude-path "**/.github/**"
+  --exclude-path "**/.cursor/**"
+
 # Only run when PR is merged (not just closed) OR when manually triggered
 jobs:
   version-bump:
@@ -63,33 +95,7 @@ jobs:
       id-token: write # Required for npm publish (OIDC)
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0 # Full history for git-cliff
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install git-cliff
-        run: |
-          # Try to install git-cliff
-          if ! command -v git-cliff &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y git-cliff || \
-              curl -L https://github.com/orhun/git-cliff/releases/latest/download/git-cliff-x86_64-unknown-linux-gnu.tar.gz | tar -xz && \
-              sudo mv git-cliff /usr/local/bin/ || \
-              echo "⚠️ git-cliff installation failed"
-          fi
+      <<: *common-setup
 
       - name: Get last tag
         id: last_tag
@@ -187,7 +193,7 @@ jobs:
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Version: $CURRENT_VERSION → $NEW_VERSION"
 
-      - name: Generate package-specific changelog
+      - name: Generate package-specific changelogs
         id: changelog
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
         env:
@@ -196,89 +202,39 @@ jobs:
           set -e
           
           NEW_VERSION="${{ steps.version_calc.outputs.NEW_VERSION }}"
-          TAG="v$NEW_VERSION"
-          LAST_TAG="${{ steps.last_tag.outputs.TAG }}"
           
-          # Generate CLI changelog section (only commits affecting packages/opennextjs-cli/**)
-          echo "📝 Generating CLI changelog section..."
-          git-cliff \
-            --config cliff.toml \
-            --include-path "packages/opennextjs-cli/**" \
-            --tag "$TAG" \
-            --latest \
-            --unreleased \
-            --output /tmp/cli-changelog.md \
-            --verbose || \
+          # Generate CLI changelog (writes directly to packages/opennextjs-cli/CHANGELOG.md)
+          # Use --unreleased because we're generating for a NEW version that doesn't have a tag yet
+          echo "📝 Generating CLI changelog..."
+          pnpm changelog:package opennextjs-cli --unreleased || \
             echo "⚠️ CLI changelog generation failed" >&2
           
-          # Generate MCP changelog section (only commits affecting packages/opennextjs-mcp/**)
-          echo "📝 Generating MCP changelog section..."
-          git-cliff \
-            --config cliff.toml \
-            --include-path "packages/opennextjs-mcp/**" \
-            --tag "$TAG" \
-            --latest \
-            --unreleased \
-            --output /tmp/mcp-changelog.md \
-            --verbose || \
+          # Generate MCP changelog (writes directly to packages/opennextjs-mcp/CHANGELOG.md)
+          # Use --unreleased because we're generating for a NEW version that doesn't have a tag yet
+          echo "📝 Generating MCP changelog..."
+          pnpm changelog:package opennextjs-mcp --unreleased || \
             echo "⚠️ MCP changelog generation failed" >&2
           
-          # Combine changelog sections
-          echo "📝 Combining changelog sections..."
+          # Check if changelogs were generated
+          CLI_UPDATED=false
+          MCP_UPDATED=false
           
-          # Start with version header
-          echo "## [$NEW_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
-          echo "" >> /tmp/changelog-section.md
-          
-          # Extract CLI section (skip header, get body)
-          if [ -f /tmp/cli-changelog.md ] && [ -s /tmp/cli-changelog.md ]; then
-            echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
-            echo "" >> /tmp/changelog-section.md
-            # Skip the header and version line, get the body
-            tail -n +2 /tmp/cli-changelog.md | sed '/^## \[/,$d' >> /tmp/changelog-section.md || true
-            echo "" >> /tmp/changelog-section.md
+          if [ -f "packages/opennextjs-cli/CHANGELOG.md" ] && grep -Fq "## \[Unreleased\]" "packages/opennextjs-cli/CHANGELOG.md"; then
+            CLI_UPDATED=true
           fi
           
-          # Extract MCP section (skip header, get body)
-          if [ -f /tmp/mcp-changelog.md ] && [ -s /tmp/mcp-changelog.md ]; then
-            echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
-            echo "" >> /tmp/changelog-section.md
-            # Skip the header and version line, get the body
-            tail -n +2 /tmp/mcp-changelog.md | sed '/^## \[/,$d' >> /tmp/changelog-section.md || true
-            echo "" >> /tmp/changelog-section.md
+          if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ] && grep -Fq "## \[Unreleased\]" "packages/opennextjs-mcp/CHANGELOG.md"; then
+            MCP_UPDATED=true
           fi
           
-          # If no package-specific sections, create a generic one
-          if [ ! -s /tmp/cli-changelog.md ] && [ ! -s /tmp/mcp-changelog.md ]; then
-            echo "Release $NEW_VERSION" >> /tmp/changelog-section.md
-            echo "" >> /tmp/changelog-section.md
-          fi
-          
-          # Update main CHANGELOG.md (prepend new section)
-          if [ -f CHANGELOG.md ]; then
-            # Prepend new section to existing changelog
-            cat /tmp/changelog-section.md CHANGELOG.md > /tmp/combined-changelog.md
-            mv /tmp/combined-changelog.md CHANGELOG.md
-          else
-            # Create new changelog with header
-            cat > CHANGELOG.md << 'EOF'
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-EOF
-            cat /tmp/changelog-section.md >> CHANGELOG.md
-          fi
-          
-          if [ -f CHANGELOG.md ] && grep -Fq "## [$NEW_VERSION]" CHANGELOG.md; then
+          if [ "$CLI_UPDATED" = "true" ] || [ "$MCP_UPDATED" = "true" ]; then
             echo "CHANGELOG_UPDATED=true" >> $GITHUB_OUTPUT
-            echo "✅ Changelog generated with package-specific sections"
+            echo "✅ Changelogs generated:"
+            [ "$CLI_UPDATED" = "true" ] && echo "   - packages/opennextjs-cli/CHANGELOG.md"
+            [ "$MCP_UPDATED" = "true" ] && echo "   - packages/opennextjs-mcp/CHANGELOG.md"
           else
             echo "CHANGELOG_UPDATED=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Changelog not updated"
+            echo "⚠️ Changelogs not updated"
           fi
 
       - name: Bump version in both packages
@@ -319,11 +275,8 @@ EOF
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Updated both packages to version $NEW_VERSION"
 
-      - name: Configure git
+      - <<: *git-config
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Commit and tag
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true' && steps.changelog.outputs.CHANGELOG_UPDATED == 'true'
@@ -333,7 +286,8 @@ EOF
           NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
           
           # Commit version and changelog changes
-          git add packages/opennextjs-cli/package.json packages/opennextjs-mcp/package.json CHANGELOG.md
+          git add packages/opennextjs-cli/package.json packages/opennextjs-mcp/package.json
+          git add packages/opennextjs-cli/CHANGELOG.md packages/opennextjs-mcp/CHANGELOG.md 2>/dev/null || true
           git commit -m "chore: bump version to $NEW_VERSION" || exit 0
           
           # Create tag
