@@ -40,6 +40,8 @@
 
 ## Installation
 
+<a href="cursor://anysphere.cursor-deeplink/mcp/install?name=opennextjs&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAanNvbmJvcmVkL29wZW5uZXh0anMtbWNwQGxhdGVzdCJdfQ=="><img src="https://cursor.com/deeplink/mcp-install-dark.png" alt="Add opennextjs MCP server to Cursor" style="max-height: 32px;" /></a>
+
 ### Automatic Setup (Recommended)
 
 The easiest way to set up the MCP server is using the CLI:
@@ -49,6 +51,7 @@ opennextjs-cli mcp setup
 ```
 
 This automatically:
+
 - Detects your MCP configuration file
 - Adds the MCP server configuration
 - Verifies the setup
@@ -164,6 +167,7 @@ Tools are functions that AI can call to interact with your project. All tools re
 Get comprehensive project status including Next.js version, OpenNext.js configuration, dependencies, worker name, caching strategy, and environments.
 
 **Returns:**
+
 ```json
 {
   "nextJs": {
@@ -186,10 +190,11 @@ Get comprehensive project status including Next.js version, OpenNext.js configur
 ```
 
 **Example AI Usage:**
+
 ```
 User: "What's my current OpenNext.js configuration?"
 AI: [Calls get_project_status]
-    → Returns: Next.js 15.1.0, OpenNext.js configured, 
+    → Returns: Next.js 15.1.0, OpenNext.js configured,
        Worker: my-app, Caching: r2, Environments: production, staging
 ```
 
@@ -198,6 +203,7 @@ AI: [Calls get_project_status]
 Validate OpenNext.js Cloudflare configuration and check for issues. Returns validation results with errors, warnings, and fix suggestions.
 
 **Returns:**
+
 ```json
 {
   "valid": true,
@@ -222,6 +228,7 @@ Validate OpenNext.js Cloudflare configuration and check for issues. Returns vali
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Is my configuration valid?"
 AI: [Calls validate_configuration]
@@ -235,6 +242,7 @@ AI: [Calls validate_configuration]
 Run health checks on the project. Returns health status, issues, and auto-fix suggestions.
 
 **Returns:**
+
 ```json
 {
   "healthy": true,
@@ -251,6 +259,7 @@ Run health checks on the project. Returns health status, issues, and auto-fix su
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Check the health of my project"
 AI: [Calls check_health]
@@ -264,6 +273,7 @@ AI: [Calls check_health]
 List available Cloudflare Workers environments from `wrangler.toml`.
 
 **Returns:**
+
 ```json
 {
   "environments": ["production", "staging", "development"]
@@ -271,6 +281,7 @@ List available Cloudflare Workers environments from `wrangler.toml`.
 ```
 
 **Example AI Usage:**
+
 ```
 User: "What environments do I have configured?"
 AI: [Calls list_environments]
@@ -282,10 +293,12 @@ AI: [Calls list_environments]
 Deploy OpenNext.js project to Cloudflare Workers. Returns deployment status and URL.
 
 **Parameters:**
+
 - `environment` (optional, string) - Environment to deploy to (default: production)
 - `dryRun` (optional, boolean) - Preview deployment without deploying
 
 **Returns:**
+
 ```json
 {
   "message": "Deployment requires wrangler CLI. Use: wrangler deploy",
@@ -296,6 +309,7 @@ Deploy OpenNext.js project to Cloudflare Workers. Returns deployment status and 
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Deploy my app to production"
 AI: [Calls deploy_to_cloudflare with environment="production"]
@@ -309,9 +323,11 @@ AI: [Calls deploy_to_cloudflare with environment="production"]
 Start local preview server using `wrangler dev`. Returns preview URL.
 
 **Parameters:**
+
 - `port` (optional, number) - Port number (default: 8787)
 
 **Returns:**
+
 ```json
 {
   "message": "Preview server requires wrangler CLI. Use: wrangler dev",
@@ -321,6 +337,7 @@ Start local preview server using `wrangler dev`. Returns preview URL.
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Start a preview server"
 AI: [Calls start_preview_server]
@@ -334,6 +351,7 @@ AI: [Calls start_preview_server]
 Update OpenNext.js Cloudflare configuration. All parameters are optional.
 
 **Parameters:**
+
 - `workerName` (optional, string) - Update worker name
 - `cachingStrategy` (optional, string) - Update caching strategy (static-assets, r2, r2-do-queue, r2-do-queue-tag-cache)
 - `database` (optional, string) - Update database option
@@ -343,6 +361,7 @@ Update OpenNext.js Cloudflare configuration. All parameters are optional.
 - `compatibilityDate` (optional, string) - Update compatibility date
 
 **Returns:**
+
 ```json
 {
   "updated": true,
@@ -353,6 +372,7 @@ Update OpenNext.js Cloudflare configuration. All parameters are optional.
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Update my caching strategy to r2"
 AI: [Calls update_configuration with cachingStrategy="r2"]
@@ -371,6 +391,7 @@ Cloudflare Workers configuration file.
 **MIME Type:** `text/toml`
 
 **Returns:**
+
 ```toml
 name = "my-worker"
 account_id = "account-id"
@@ -381,6 +402,7 @@ account_id = "prod-account-id"
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Show me my wrangler.toml"
 AI: [Reads opennextjs://config/wrangler.toml]
@@ -389,6 +411,7 @@ AI: [Reads opennextjs://config/wrangler.toml]
 ```
 
 **Error Handling:**
+
 - If file doesn't exist, returns error: "wrangler.toml not found"
 
 ### 2. `opennextjs://config/open-next.config.ts`
@@ -398,6 +421,7 @@ OpenNext.js Cloudflare configuration file.
 **MIME Type:** `text/typescript`
 
 **Returns:**
+
 ```typescript
 export default {
   adapter: 'cloudflare',
@@ -407,6 +431,7 @@ export default {
 ```
 
 **Example AI Usage:**
+
 ```
 User: "What's in my open-next.config.ts?"
 AI: [Reads opennextjs://config/open-next.config.ts]
@@ -415,6 +440,7 @@ AI: [Reads opennextjs://config/open-next.config.ts]
 ```
 
 **Error Handling:**
+
 - If file doesn't exist, returns error: "open-next.config.ts not found"
 
 ### 3. `opennextjs://config/package.json`
@@ -424,6 +450,7 @@ Project package.json file with dependencies and scripts.
 **MIME Type:** `application/json`
 
 **Returns:**
+
 ```json
 {
   "name": "my-project",
@@ -443,6 +470,7 @@ Project package.json file with dependencies and scripts.
 ```
 
 **Example AI Usage:**
+
 ```
 User: "What dependencies do I have?"
 AI: [Reads opennextjs://config/package.json]
@@ -451,6 +479,7 @@ AI: [Reads opennextjs://config/package.json]
 ```
 
 **Error Handling:**
+
 - If file doesn't exist, returns error (package.json should always exist)
 
 ### 4. `opennextjs://project/structure`
@@ -460,6 +489,7 @@ Project file tree and key directories.
 **MIME Type:** `application/json`
 
 **Returns:**
+
 ```json
 {
   "structure": {
@@ -473,6 +503,7 @@ Project file tree and key directories.
 ```
 
 **Example AI Usage:**
+
 ```
 User: "Show me my project structure"
 AI: [Reads opennextjs://project/structure]
@@ -490,6 +521,7 @@ Step-by-step guide for setting up OpenNext.js Cloudflare project.
 
 **Returns:**
 Structured prompt with:
+
 - Prerequisites checklist
 - Installation steps
 - Configuration steps
@@ -497,6 +529,7 @@ Structured prompt with:
 - Next steps
 
 **Example AI Usage:**
+
 ```
 User: "Help me set up OpenNext.js"
 AI: [Uses setup-opennextjs-project prompt]
@@ -513,12 +546,14 @@ Common deployment issues and solutions for OpenNext.js Cloudflare.
 
 **Returns:**
 Structured prompt with:
+
 - Common deployment errors
 - Solutions for each error
 - Diagnostic steps
 - Prevention tips
 
 **Example AI Usage:**
+
 ```
 User: "My deployment is failing"
 AI: [Uses troubleshoot-deployment prompt]
@@ -535,12 +570,14 @@ Best practices for optimizing Cloudflare Workers configuration.
 
 **Returns:**
 Structured prompt with:
+
 - Performance optimization tips
 - Caching strategy recommendations
 - Configuration best practices
 - Resource optimization
 
 **Example AI Usage:**
+
 ```
 User: "How can I optimize my Cloudflare config?"
 AI: [Uses optimize-cloudflare-config prompt]
@@ -578,6 +615,7 @@ OpenNext.js Project (local filesystem)
 ### Stdio Transport
 
 The MCP server uses stdio (standard input/output) transport, meaning:
+
 - ✅ Runs locally (no network required)
 - ✅ Secure (no external connections)
 - ✅ Fast (direct file system access)
@@ -591,6 +629,7 @@ The MCP server automatically detects the project directory from the current work
 - `wrangler.toml` or `open-next.config.ts` (optional, for OpenNext.js projects)
 
 **Monorepo Support:**
+
 - Automatically detects monorepo structure
 - Finds Next.js projects within workspaces
 - Works from any directory within monorepo
@@ -675,6 +714,7 @@ The MCP server is configured in your MCP client's configuration file:
 **Claude Desktop (Linux):** `~/.config/Claude/claude_desktop_config.json`
 
 **Configuration Format:**
+
 ```json
 {
   "mcpServers": {
@@ -694,6 +734,7 @@ The MCP server automatically detects the project directory from the current work
 - `wrangler.toml` or `open-next.config.ts` (optional, for OpenNext.js projects)
 
 **Monorepo Support:**
+
 - Automatically detects monorepo structure
 - Finds Next.js projects within workspaces
 - Works from any directory within monorepo
@@ -749,6 +790,7 @@ The MCP package includes comprehensive tests:
   - Registration functions
 
 **Test Structure:**
+
 - `src/__tests__/mcp-server.test.ts` - Server tests
 - `src/__tests__/tools/` - Tool tests
 - `src/__tests__/resources/` - Resource tests
@@ -801,9 +843,9 @@ See [MCP_TESTING.md](../../MCP_TESTING.md) for detailed testing documentation.
 ```
 User: "What's my project status?"
 AI: [Calls get_project_status]
-    → Returns: Next.js 15.1.0, OpenNext.js configured, 
+    → Returns: Next.js 15.1.0, OpenNext.js configured,
        Worker: my-app, Caching: r2, Environments: production, staging
-    → AI summarizes: "Your project is configured with Next.js 15.1.0, 
+    → AI summarizes: "Your project is configured with Next.js 15.1.0,
        worker name 'my-app', using R2 caching, with production and staging environments."
 ```
 
@@ -814,7 +856,7 @@ User: "Validate my setup"
 AI: [Calls validate_configuration]
     → Returns: ✅ Configuration valid, 2 warnings found
     → Warnings include documentation links
-    → AI suggests: "Your configuration is valid, but you should add 
+    → AI suggests: "Your configuration is valid, but you should add
        account_id to wrangler.toml. See: [docs link]"
 ```
 
@@ -825,7 +867,7 @@ User: "Check my project health"
 AI: [Calls check_health]
     → Returns: ✅ All checks passed
     → Or: ⚠️ 3 warnings, 1 error found
-    → AI suggests: "Your project is healthy!" or 
+    → AI suggests: "Your project is healthy!" or
        "Found 3 warnings and 1 error. Run 'opennextjs-cli doctor --fix' to auto-fix."
 ```
 
@@ -846,7 +888,7 @@ User: "Show me my wrangler.toml"
 AI: [Reads opennextjs://config/wrangler.toml]
     → Returns: Full file content
     → AI displays: "Here's your wrangler.toml: [content]"
-    → AI can analyze: "I notice you're missing account_id. 
+    → AI can analyze: "I notice you're missing account_id.
        Should I help you add it?"
 ```
 

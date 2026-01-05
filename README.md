@@ -11,6 +11,8 @@
 [![Node.js version](https://img.shields.io/node/v/@jsonbored/opennextjs-cli)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+<a href="cursor://anysphere.cursor-deeplink/mcp/install?name=opennextjs&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAanNvbmJvcmVkL29wZW5uZXh0anMtbWNwQGxhdGVzdCJdfQ=="><img src="https://cursor.com/deeplink/mcp-install-dark.png" alt="Add opennextjs MCP server to Cursor" style="max-height: 32px;" /></a>
+
 [Quick Start](#quick-start) • [Packages](#packages) • [Documentation](#documentation) • [Development](#development)
 
 </div>
@@ -58,6 +60,68 @@ npm install -g @jsonbored/opennextjs-mcp
 **Documentation:** See [packages/opennextjs-mcp/README.md](packages/opennextjs-mcp/README.md) for complete MCP documentation.
 
 **Note:** The MCP server is automatically configured when you run `opennextjs-cli mcp setup`.
+
+### MCP Configuration
+
+**Quick Setup with Cursor**: Click the "Add to Cursor" button above to automatically add the MCP server to your Cursor IDE.
+
+**Manual Configuration**:
+
+**For Cursor** (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "opennextjs": {
+      "command": "npx",
+      "args": ["@jsonbored/opennextjs-mcp@latest"]
+    }
+  }
+}
+```
+
+**For Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "opennextjs": {
+      "command": "npx",
+      "args": ["@jsonbored/opennextjs-mcp@latest"]
+    }
+  }
+}
+```
+
+**For Claude Desktop (Windows)** (`%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "opennextjs": {
+      "command": "npx",
+      "args": ["@jsonbored/opennextjs-mcp@latest"]
+    }
+  }
+}
+```
+
+**For Claude Desktop (Linux)** (`~/.config/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "opennextjs": {
+      "command": "npx",
+      "args": ["@jsonbored/opennextjs-mcp@latest"]
+    }
+  }
+}
+```
+
+After adding the configuration, restart your AI tool to load the MCP server.
+
+**Note**: You can also use `opennextjs-cli mcp setup` to automatically configure this.
 
 ## Quick Start
 
