@@ -1,270 +1,663 @@
-# Automatically releases both @jsonbored/opennextjs-cli and @jsonbored/opennextjs-mcp
-# packages to npm when a version tag is pushed. Supports both NPM_TOKEN (for first release)
-# and OIDC (for subsequent releases). Both packages are released with synchronized versions.
+# Release workflow automates the following:
+# - Manual releases (via workflow_dispatch)
+# - Automatic releases on tag pushes (v*.*.* tags)
+# - Actions on PR merges to main branch affecting release-monitored packages or workflow files
 #
-# **What it does:**
-# 1. Builds both packages (CLI and MCP)
-# 2. Extracts version from tag (e.g., v1.0.0 → 1.0.0)
-# 3. Verifies both package.json versions match tag version
-# 4. Generates changelog automatically using git-cliff
-# 5. Publishes both packages to npm (tries OIDC first, falls back to NPM_TOKEN)
-# 6. Creates GitHub Release with changelog notes
+# **Phases (may be run independently):**
+# - full-release: Complete release sequence (version bump → changelog update/generation → build → publish)
+# - version-bump: Only bump version and create git tag
+# - changelog-update: Update unreleased changelog sections only
+# - changelog-generate: Generate changelogs for a specific tag
+# - build-only: Build packages without publishing
+# - publish-only: Publish to npm for an existing tag
+# - version-bump: Only bump versions and create tag
+# - changelog-update: Only update unreleased changelogs
+# - changelog-generate: Generate changelogs for specific tag
+# - build-only: Only build packages
+# - publish-only: Only publish to npm (requires tag)
 #
 # **Triggers:**
-# 1. Push a version tag (automatic):
-#    ```bash
-#    git tag v1.0.0
-#    git push origin v1.0.0
-#    ```
-# 2. Manual workflow_dispatch (button in GitHub Actions dashboard):
-#    - Go to Actions → Release → Run workflow
-#    - Enter version (e.g., "0.1.0") or leave empty to use package.json version
-#    - Click "Run workflow"
-#    - Workflow will: create tag → generate changelogs → commit → push tag → publish to npm
-#
-# **Prerequisites:**
-# - package.json version must match tag version (e.g., 1.0.0)
+# 1. Manual workflow_dispatch - Full control via inputs
+# 2. Tag push v*.*.* - Automatic publish phase
+# 3. PR merge to main - Auto version-bump and changelog-update (if packages changed)
 #
 # **First Release (NPM_TOKEN):**
 # - Requires NPM_TOKEN secret in GitHub repository
 # - Create token: npmjs.com → Account Settings → Access Tokens → Generate New Token (Automation)
 # - Add secret: GitHub repo → Settings → Secrets and variables → Actions → New repository secret
 # - Name: NPM_TOKEN
-# - Value: Your npm automation token
 #
 # **Subsequent Releases (OIDC - Recommended):**
-# - After first release, set up OIDC trusted publishing:
-#   1. Go to npmjs.com → Account Settings → Access Tokens → Automation
-#   2. Click "Add GitHub Actions" or "Configure" next to "Trusted Publishers"
-#   3. Select repository: JSONbored/opennextjs-cli
-#   4. Select workflow: .github/workflows/release.yml
-#   5. Save
+# - After first release, set up OIDC trusted publishing on npm
 # - Once OIDC is configured, NPM_TOKEN is no longer needed
 # - More secure than token-based authentication
 # - Automatic token rotation
 name: Release
 
 on:
+  workflow_dispatch: {}
   push:
     tags:
-      - v*.*.* # Matches v1.2.3
-  workflow_dispatch: {}
+      - v*.*.* # Matches v1.2.3 - Auto-trigger publish phase
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - packages/opennextjs-cli/**
+      - packages/opennextjs-mcp/**
+      - .github/workflows/release.yml
+      - scripts/bump-version.ts
 
 permissions: read-all
 
 jobs:
-  release:
+  # Determine which phases to run based on trigger and inputs
+  determine-phases:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    outputs:
+      run_version_bump: ${{ steps.determine.outputs.run_version_bump }}
+      run_changelog_update: ${{ steps.determine.outputs.run_changelog_update }}
+      run_changelog_generate: ${{ steps.determine.outputs.run_changelog_generate }}
+      run_build: ${{ steps.determine.outputs.run_build }}
+      run_publish: ${{ steps.determine.outputs.run_publish }}
+      phase: ${{ steps.determine.outputs.phase }}
+      version: ${{ steps.determine.outputs.version }}
+      bump_type: ${{ steps.determine.outputs.bump_type }}
+    steps:
+      - name: Determine phases to run
+        id: determine
+        run: |
+          set -e
+
+          # Determine trigger type
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger defaults to full-release
+            PHASE="full-release"
+            VERSION=""
+            BUMP_TYPE="auto"
+            echo "🚀 Manual trigger - Phase: $PHASE"
+          elif [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v*.*.* ]]; then
+            PHASE="publish-only"
+            VERSION=""
+            BUMP_TYPE="auto"
+            echo "🚀 Tag push trigger - Phase: $PHASE"
+          elif [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ github.event.pull_request.merged }}" == "true" ]; then
+            PHASE="version-bump"
+            VERSION=""
+            BUMP_TYPE="auto"
+            echo "🚀 PR merge trigger - Phase: $PHASE (with changelog-update)"
+          else
+            echo "❌ Unsupported trigger: ${{ github.event_name }}" >&2
+            exit 1
+          fi
+
+          # Determine which phases to run
+          if [ "$PHASE" == "full-release" ]; then
+            RUN_VERSION_BUMP="true"
+            RUN_CHANGELOG_UPDATE="true"
+            RUN_CHANGELOG_GENERATE="true"
+            RUN_BUILD="true"
+            RUN_PUBLISH="true"
+          elif [ "$PHASE" == "version-bump" ]; then
+            RUN_VERSION_BUMP="true"
+            RUN_CHANGELOG_UPDATE="false"
+            RUN_CHANGELOG_GENERATE="false"
+            RUN_BUILD="false"
+            RUN_PUBLISH="false"
+            # PR merge also runs changelog-update
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              RUN_CHANGELOG_UPDATE="true"
+            fi
+          elif [ "$PHASE" == "changelog-update" ]; then
+            RUN_VERSION_BUMP="false"
+            RUN_CHANGELOG_UPDATE="true"
+            RUN_CHANGELOG_GENERATE="false"
+            RUN_BUILD="false"
+            RUN_PUBLISH="false"
+          elif [ "$PHASE" == "changelog-generate" ]; then
+            RUN_VERSION_BUMP="false"
+            RUN_CHANGELOG_UPDATE="false"
+            RUN_CHANGELOG_GENERATE="true"
+            RUN_BUILD="false"
+            RUN_PUBLISH="false"
+          elif [ "$PHASE" == "build-only" ]; then
+            RUN_VERSION_BUMP="false"
+            RUN_CHANGELOG_UPDATE="false"
+            RUN_CHANGELOG_GENERATE="false"
+            RUN_BUILD="true"
+            RUN_PUBLISH="false"
+          elif [ "$PHASE" == "publish-only" ]; then
+            RUN_VERSION_BUMP="false"
+            RUN_CHANGELOG_UPDATE="false"
+            RUN_CHANGELOG_GENERATE="true"
+            RUN_BUILD="true"
+            RUN_PUBLISH="true"
+          else
+            echo "❌ Invalid phase: $PHASE" >&2
+            exit 1
+          fi
+
+          echo "run_version_bump=$RUN_VERSION_BUMP" >> "$GITHUB_OUTPUT"
+          echo "run_changelog_update=$RUN_CHANGELOG_UPDATE" >> "$GITHUB_OUTPUT"
+          echo "run_changelog_generate=$RUN_CHANGELOG_GENERATE" >> "$GITHUB_OUTPUT"
+          echo "run_build=$RUN_BUILD" >> "$GITHUB_OUTPUT"
+          echo "run_publish=$RUN_PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "phase=$PHASE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+
+          echo "✅ Phase determination complete:"
+          echo "   - Version Bump: $RUN_VERSION_BUMP"
+          echo "   - Changelog Update: $RUN_CHANGELOG_UPDATE"
+          echo "   - Changelog Generate: $RUN_CHANGELOG_GENERATE"
+          echo "   - Build: $RUN_BUILD"
+          echo "   - Publish: $RUN_PUBLISH"
+
+  # Phase 1: Version Bump
+  version-bump:
+    needs: determine-phases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      NEW_VERSION: ${{ steps.new_version.outputs.NEW_VERSION != '' && steps.new_version.outputs.NEW_VERSION || steps.init.outputs.NEW_VERSION || '' }}
 
     permissions:
       actions: read
       checks: read
-      contents: write # Required to create GitHub releases and push tags/commits
+      contents: write # Required to commit and push tags
       deployments: none
-      id-token: write # Required for npm publish (OIDC)
       issues: none
       packages: none
-      pull-requests: none
+      pull-requests: read
       repository-projects: none
       security-events: none
       statuses: read
+      id-token: none
 
     steps:
-      - name: Checkout repository
+      - name: Initialize outputs
+        id: init
+        run: |
+          echo "NEW_VERSION=" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version bump is needed
+        id: check
+        run: |
+          if [ "${{ needs.determine-phases.outputs.run_version_bump }}" != "true" ]; then
+            echo "SKIP=true" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Skipping version bump phase"
+            exit 0
+          fi
+          echo "SKIP=false" >> "$GITHUB_OUTPUT"
+
+      - name: Starting phase - Version Bump
+        if: steps.check.outputs.SKIP != 'true'
+        run: 'echo "🚀 Starting phase: Version Bump"'
+
+      - name: 📋 Step - Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          fetch-depth: 0 # Full history for changelog generation
+          fetch-depth: 0 # Full history for git-cliff
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup pnpm
+      - name: 📋 Step - Setup pnpm
         uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
 
-      - name: Setup Node.js
+      - name: 📋 Step - Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          registry-url: https://registry.npmjs.org
           cache: pnpm
 
-      - name: Install dependencies
+      - name: 📋 Step - Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm type-check
-
-      - name: Test
-        run: pnpm test
-
-      - name: Build CLI package
-        working-directory: packages/opennextjs-cli
-        run: pnpm build
-
-      - name: Build MCP package
-        working-directory: packages/opennextjs-mcp
-        run: pnpm build
-
-      - name: Extract version from tag or input
-        id: version
-        run: |
-          # For workflow_dispatch, use package.json version
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            # Read from CLI package.json
-            VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
-            # Remove 'v' prefix if present
-            VERSION="${VERSION#v}"
-            TAG="v$VERSION"
-            echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
-            echo "IS_MANUAL=true" >> "$GITHUB_OUTPUT"
-          else
-            # Extract version from tag (e.g., v1.0.0 → 1.0.0)
-            TAG_NAME="${{ github.ref_name }}"
-            VERSION="${TAG_NAME#v}"
-            TAG="$TAG_NAME"
-            echo "IS_MANUAL=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Version: $VERSION"
-          echo "Tag: $TAG"
-
-      - name: Verify CLI package.json version matches tag
-        working-directory: packages/opennextjs-cli
-        run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "❌ CLI version mismatch: package.json ($PACKAGE_VERSION) != tag ($TAG_VERSION)" >&2
-            exit 1
-          fi
-          echo "✅ CLI version match: $PACKAGE_VERSION"
-
-      - name: Verify MCP package.json version matches tag
-        working-directory: packages/opennextjs-mcp
-        run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "❌ MCP version mismatch: package.json ($PACKAGE_VERSION) != tag ($TAG_VERSION)" >&2
-            exit 1
-          fi
-          echo "✅ MCP version match: $PACKAGE_VERSION"
-
-      - name: Setup git-cliff
+      - name: 📋 Step - Setup git-cliff
         uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
         with:
           version: latest
 
-      - name: Check if tag exists (for manual trigger)
-        if: steps.version.outputs.IS_MANUAL == 'true'
-        id: tag_check
+      - name: 📋 Step - Get last tag
+        id: last_tag
         run: |
-          TAG="${{ steps.version.outputs.TAG }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "EXISTS=true" >> "$GITHUB_OUTPUT"
-            echo "⚠️ Tag $TAG already exists - will use existing tag"
+          set -e
+          echo "⏳ Checking for existing tags..."
+
+          LAST_TAG=$(git describe --tags --match 'v*.*.*' --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "📋 No previous tag found, starting from v0.1.0"
+            CURRENT_VERSION="0.1.0"
+            TAG=""
           else
-            echo "EXISTS=false" >> "$GITHUB_OUTPUT"
-            echo "✅ Tag $TAG does not exist - will create it and generate changelogs first"
+            CURRENT_VERSION="${LAST_TAG#v}"
+            TAG="$LAST_TAG"
+            echo "📋 Found last tag: $TAG (version: $CURRENT_VERSION)"
           fi
 
-      - name: Generate changelogs and create tag (manual trigger, tag doesn't exist)
-        if: steps.version.outputs.IS_MANUAL == 'true' && steps.tag_check.outputs.EXISTS == 'false'
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 📋 Step - Check for changes
+        id: changes
+        run: |
+          set -e
+
+          if [ -z "${{ steps.last_tag.outputs.TAG }}" ]; then
+            echo "📋 No previous tag, assuming we have changes"
+            echo "HAS_CHANGES=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COMMIT_COUNT=$(git rev-list --count "${{ steps.last_tag.outputs.TAG }}"..HEAD 2>/dev/null || echo "0")
+
+          if [ "$COMMIT_COUNT" -gt 0 ]; then
+            echo "📋 Found $COMMIT_COUNT commits since ${{ steps.last_tag.outputs.TAG }}"
+            echo "HAS_CHANGES=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "📋 No new commits since last tag"
+            echo "HAS_CHANGES=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 📋 Step - Calculate new version
+        id: version_calc
+        if: steps.changes.outputs.HAS_CHANGES == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
-          TAG="${{ steps.version.outputs.TAG }}"
+          echo "⏳ Calculating new version..."
 
-          echo "📝 Generating CLI changelog..."
-          pnpm changelog:package opennextjs-cli --tag "$TAG" || {
+          VERSION_INPUT="${{ needs.determine-phases.outputs.version }}"
+          BUMP_TYPE="${{ needs.determine-phases.outputs.bump_type }}"
+          CURRENT_VERSION="${{ steps.last_tag.outputs.CURRENT_VERSION }}"
+          LAST_TAG="${{ steps.last_tag.outputs.TAG }}"
+
+          if [ -n "$VERSION_INPUT" ]; then
+            # Use provided version
+            NEW_VERSION="$VERSION_INPUT"
+            echo "📋 Using provided version: $NEW_VERSION"
+          elif [ "$BUMP_TYPE" == "auto" ]; then
+            # Auto-calculate from commits
+            if [ -z "$LAST_TAG" ]; then
+              NEW_VERSION="0.1.0"
+              echo "📋 No previous tag, using initial version: $NEW_VERSION"
+            else
+              NEW_VERSION_TAG=$(git-cliff --config cliff.toml --bumped-version 2>&1 | tail -1 || echo "")
+              NEW_VERSION="${NEW_VERSION_TAG#v}"
+              echo "📋 Auto-calculated version from commits: $NEW_VERSION"
+            fi
+          else
+            # Manual bump type
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+            if [ "$BUMP_TYPE" == "major" ]; then
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+            elif [ "$BUMP_TYPE" == "minor" ]; then
+              NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+            elif [ "$BUMP_TYPE" == "patch" ]; then
+              NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+            else
+              echo "❌ Invalid bump type: $BUMP_TYPE" >&2
+              exit 1
+            fi
+            echo "📋 Manual bump ($BUMP_TYPE): $CURRENT_VERSION → $NEW_VERSION"
+          fi
+
+          # Validate version
+          if ! echo "$NEW_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Error: Invalid version '$NEW_VERSION'" >&2
+            exit 1
+          fi
+
+          if [ "$NEW_VERSION" == "$CURRENT_VERSION" ]; then
+            echo "⚠️ No version bump needed (already at $CURRENT_VERSION)"
+            echo "SKIP_RELEASE=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "✅ Version calculated: $CURRENT_VERSION → $NEW_VERSION"
+
+      - name: 📋 Step - Bump version in both packages
+        id: new_version
+        if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
+        run: |
+          set -e
+
+          echo "⏳ Updating package.json files..."
+
+          NEW_VERSION="${{ steps.version_calc.outputs.NEW_VERSION }}"
+
+          node -e "
+            const fs = require('fs');
+
+            // Update CLI package.json
+            const cliPath = 'packages/opennextjs-cli/package.json';
+            const cliPkg = JSON.parse(fs.readFileSync(cliPath, 'utf8'));
+            cliPkg.version = '$NEW_VERSION';
+            fs.writeFileSync(cliPath, JSON.stringify(cliPkg, null, 2) + '\n');
+            console.log('✅ Updated @jsonbored/opennextjs-cli to version $NEW_VERSION');
+
+            // Update MCP package.json
+            const mcpPath = 'packages/opennextjs-mcp/package.json';
+            const mcpPkg = JSON.parse(fs.readFileSync(mcpPath, 'utf8'));
+            mcpPkg.version = '$NEW_VERSION';
+
+            // Update MCP's dependency on CLI
+            if (mcpPkg.dependencies && mcpPkg.dependencies['@jsonbored/opennextjs-cli']) {
+              mcpPkg.dependencies['@jsonbored/opennextjs-cli'] = '^$NEW_VERSION';
+            }
+
+            fs.writeFileSync(mcpPath, JSON.stringify(mcpPkg, null, 2) + '\n');
+            console.log('✅ Updated @jsonbored/opennextjs-mcp to version $NEW_VERSION');
+            console.log('✅ Updated MCP dependency on CLI to ^$NEW_VERSION');
+          "
+
+          echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "✅ Both packages updated to version $NEW_VERSION"
+
+      - name: 📋 Step - Configure git
+        if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 📋 Step - Commit and tag
+        if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
+        run: |
+          set -e
+
+          echo "⏳ Committing version changes and creating tag..."
+
+          NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
+
+          # Commit version changes
+          git add packages/opennextjs-cli/package.json packages/opennextjs-mcp/package.json
+
+          if git diff --staged --quiet; then
+            echo "⚠️ No version changes to commit"
+          else
+            git commit -m "chore: bump version to $NEW_VERSION" || exit 0
+            echo "✅ Version changes committed"
+          fi
+
+          # Create tag
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          echo "✅ Tag v$NEW_VERSION created"
+
+          # Push commit and tag
+          git push origin main "v$NEW_VERSION"
+          echo "✅ Committed and tagged v$NEW_VERSION"
+          echo "✅ Phase: Version Bump - Complete"
+
+  # Phase 2: Changelog Update (unreleased)
+  changelog-update:
+    needs: determine-phases
+    if: needs.determine-phases.outputs.run_changelog_update == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      actions: read
+      checks: read
+      contents: write # Required to commit changelog updates
+      deployments: none
+      issues: none
+      packages: none
+      pull-requests: read
+      repository-projects: none
+      security-events: none
+      statuses: read
+      id-token: none
+
+    steps:
+      - name: 🚀 Starting phase - Changelog Update
+        run: 'echo "🚀 Starting phase: Changelog Update (Unreleased)"'
+
+      - name: 📋 Step - Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # Full history for git-cliff
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Step - Setup pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+
+      - name: 📋 Step - Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 📋 Step - Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 📋 Step - Setup git-cliff
+        uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
+        with:
+          version: latest
+
+      - name: 📋 Step - Generate unreleased changelog
+        id: changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          echo "⏳ Checking for unreleased commits..."
+
+          LAST_TAG=$(git describe --tags --match v*.*.* --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "📋 No previous tag found, skipping changelog update"
+            echo "HAS_CHANGES=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COMMIT_COUNT=$(git rev-list --count "$LAST_TAG"..HEAD 2>/dev/null || echo "0")
+
+          if [ "$COMMIT_COUNT" -eq 0 ]; then
+            echo "📋 No new commits since last tag, skipping changelog update"
+            echo "HAS_CHANGES=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "📋 Found $COMMIT_COUNT commits since $LAST_TAG"
+          echo "HAS_CHANGES=true" >> "$GITHUB_OUTPUT"
+
+          # Generate CLI changelog (writes directly to packages/opennextjs-cli/CHANGELOG.md)
+          echo "⏳ Generating CLI changelog (unreleased)..."
+          pnpm changelog:package opennextjs-cli --unreleased || {
             echo "⚠️ CLI changelog generation failed" >&2
             exit 1
           }
+          echo "✅ CLI changelog generated"
 
-          echo "📝 Generating MCP changelog..."
-          pnpm changelog:package opennextjs-mcp --tag "$TAG" || {
+          # Generate MCP changelog (writes directly to packages/opennextjs-mcp/CHANGELOG.md)
+          echo "⏳ Generating MCP changelog (unreleased)..."
+          pnpm changelog:package opennextjs-mcp --unreleased || {
             echo "⚠️ MCP changelog generation failed" >&2
             exit 1
           }
+          echo "✅ MCP changelog generated"
 
-          echo "✅ Changelogs generated successfully"
+          echo "✅ Changelogs updated for both packages"
 
-          # Commit changelogs
+      - name: 📋 Step - Configure git
+        if: steps.changelog.outputs.HAS_CHANGES == 'true'
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 📋 Step - Commit and push changelogs
+        if: steps.changelog.outputs.HAS_CHANGES == 'true'
+        run: |
+          set -e
+
+          echo "⏳ Committing changelog updates..."
 
           git add packages/opennextjs-cli/CHANGELOG.md packages/opennextjs-mcp/CHANGELOG.md
 
           if git diff --staged --quiet; then
-            echo "No changelog changes to commit"
-          else
-            git commit -m "chore: update changelogs for $TAG release"
-            git push origin main
-            echo "✅ Changelogs committed and pushed"
+            echo "📋 No changelog changes to commit"
+            exit 0
           fi
 
-          # Create and push tag (this will trigger this workflow again with tag push event)
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-          echo "✅ Tag $TAG created and pushed"
-          echo "ℹ️  This workflow will run again automatically when the tag is pushed"
+          git commit -m "docs: update package changelogs with unreleased changes [skip ci]"
+          git push origin main
+          echo "✅ Changelogs committed and pushed"
+          echo "✅ Phase: Changelog Update - Complete"
 
-      - name: Generate package-specific changelogs (when tag already exists)
-        if: |
-          (steps.version.outputs.IS_MANUAL == 'true' && steps.tag_check.outputs.EXISTS == 'true') ||
-          steps.version.outputs.IS_MANUAL == 'false'
+  # Phase 3: Changelog Generate (for specific tag)
+  changelog-generate:
+    needs: [determine-phases, version-bump]
+    if: |
+      needs.determine-phases.outputs.run_changelog_generate == 'true' &&
+      (needs.version-bump.result == 'success' || needs.version-bump.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      deployments: none
+      issues: none
+      packages: none
+      pull-requests: read
+      repository-projects: none
+      security-events: none
+      statuses: read
+      id-token: none
+
+    steps:
+      - name: 🚀 Starting phase - Changelog Generate
+        run: 'echo "🚀 Starting phase: Changelog Generate (for tag)"'
+
+      - name: 📋 Step - Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # Full history for changelog generation
+
+      - name: 📋 Step - Setup pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+
+      - name: 📋 Step - Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 📋 Step - Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 📋 Step - Setup git-cliff
+        uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
+        with:
+          version: latest
+
+      - name: 📋 Step - Determine tag to use
+        id: tag_info
+        run: |
+          set -e
+
+          # Get tag from version-bump job if it ran, otherwise from push event or determine version
+          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v*.*.* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
+            echo "📋 Using tag from push event: $TAG_NAME"
+          elif [ "${{ needs.version-bump.outputs.NEW_VERSION }}" != "" ]; then
+            VERSION="${{ needs.version-bump.outputs.NEW_VERSION }}"
+            TAG_NAME="v$VERSION"
+            echo "📋 Using tag from version-bump: $TAG_NAME"
+          elif [ -n "${{ needs.determine-phases.outputs.version }}" ]; then
+            VERSION="${{ needs.determine-phases.outputs.version }}"
+            TAG_NAME="v$VERSION"
+            echo "📋 Using tag from input: $TAG_NAME"
+          else
+            # Try to get from package.json
+            VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
+            TAG_NAME="v$VERSION"
+            echo "📋 Using tag from package.json: $TAG_NAME"
+          fi
+
+          # Check if tag exists
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "TAG_EXISTS=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tag verified: $TAG_NAME (version: $VERSION)"
+          else
+            echo "TAG_EXISTS=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Tag '$TAG_NAME' does not exist yet (first release)"
+            echo "   Will use --unreleased flag for changelog generation"
+          fi
+
+          echo "TAG=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: 📋 Step - Generate changelogs for tag
+        id: changelog
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
-          TAG="${{ steps.version.outputs.TAG }}"
+          TAG="${{ steps.tag_info.outputs.TAG }}"
+          VERSION="${{ steps.tag_info.outputs.VERSION }}"
+          TAG_EXISTS="${{ steps.tag_info.outputs.TAG_EXISTS }}"
 
-          # Generate CLI changelog (writes directly to packages/opennextjs-cli/CHANGELOG.md)
-          echo "📝 Generating CLI changelog..."
-          pnpm changelog:package opennextjs-cli --tag "$TAG" || \
+          # Use --unreleased if tag doesn't exist (first release), otherwise use --tag
+          if [ "$TAG_EXISTS" == "true" ]; then
+            echo "⏳ Generating changelogs for tag $TAG..."
+            CLI_FLAG="--tag $TAG"
+            MCP_FLAG="--tag $TAG"
+          else
+            echo "⏳ Generating changelogs for unreleased commits (first release)..."
+            CLI_FLAG="--unreleased"
+            MCP_FLAG="--unreleased"
+          fi
+
+          # Generate CLI changelog
+          echo "⏳ Generating CLI changelog..."
+          pnpm changelog:package opennextjs-cli $CLI_FLAG || {
             echo "⚠️ CLI changelog generation failed" >&2
+            exit 1
+          }
+          echo "✅ CLI changelog generated"
 
-          # Generate MCP changelog (writes directly to packages/opennextjs-mcp/CHANGELOG.md)
-          echo "📝 Generating MCP changelog..."
-          pnpm changelog:package opennextjs-mcp --tag "$TAG" || \
+          # Generate MCP changelog
+          echo "⏳ Generating MCP changelog..."
+          pnpm changelog:package opennextjs-mcp $MCP_FLAG || {
             echo "⚠️ MCP changelog generation failed" >&2
+            exit 1
+          }
+          echo "✅ MCP changelog generated"
 
           # Extract changelog sections for GitHub Release notes
-          # Read from package-specific CHANGELOG.md files
-          echo "📝 Extracting changelog sections for release notes..."
-
-          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "⏳ Extracting changelog sections for release notes..."
 
           # Start with version header
           echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
           echo "" >> /tmp/changelog-section.md
 
-          # Extract CLI section from packages/opennextjs-cli/CHANGELOG.md
+          # Extract CLI section
           if [ -f "packages/opennextjs-cli/CHANGELOG.md" ]; then
-            # Find the version section in CLI changelog
             CLI_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
             if [ -n "$CLI_SECTION" ]; then
               echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
               echo "" >> /tmp/changelog-section.md
-              # Remove the version header line, keep the rest
               echo "$CLI_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
               echo "" >> /tmp/changelog-section.md
             fi
           fi
 
-          # Extract MCP section from packages/opennextjs-mcp/CHANGELOG.md
+          # Extract MCP section
           if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ]; then
-            # Find the version section in MCP changelog
             MCP_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
             if [ -n "$MCP_SECTION" ]; then
               echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
               echo "" >> /tmp/changelog-section.md
-              # Remove the version header line, keep the rest
               echo "$MCP_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
               echo "" >> /tmp/changelog-section.md
             fi
@@ -277,30 +670,319 @@ jobs:
           fi
 
           # Set changelog section for GitHub release
-          echo "CHANGELOG_SECTION<<EOF" >> "$GITHUB_ENV" # Trunk: Add missing newline for echo
+          echo "CHANGELOG_SECTION<<EOF" >> "$GITHUB_ENV"
           cat /tmp/changelog-section.md >> "$GITHUB_ENV"
-          echo "EOF" >> "$GITHUB_ENV" # Trunk: Add missing newline
+          echo "EOF" >> "$GITHUB_ENV"
 
           echo "✅ Changelogs generated successfully"
           echo "   - packages/opennextjs-cli/CHANGELOG.md"
           echo "   - packages/opennextjs-mcp/CHANGELOG.md"
 
-      - name: Publish CLI to npm (try OIDC first)
+      - name: 📋 Step - Configure git
+        if: steps.changelog.outputs.HAS_CHANGES == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 📋 Step - Commit changelogs (if needed)
+        if: steps.changelog.outputs.HAS_CHANGES == 'true'
+        run: |
+          set -e
+
+          echo "⏳ Checking if changelogs need to be committed..."
+
+          git add packages/opennextjs-cli/CHANGELOG.md packages/opennextjs-mcp/CHANGELOG.md
+
+          if git diff --staged --quiet; then
+            echo "📋 No changelog changes to commit"
+          else
+            TAG="${{ steps.tag_info.outputs.TAG }}"
+            git commit -m "chore: update changelogs for $TAG release" || exit 0
+            git push origin main || exit 0
+            echo "✅ Changelogs committed and pushed"
+          fi
+
+          echo "✅ Phase: Changelog Generate - Complete"
+
+  # Phase 4: Build
+  build:
+    needs: [determine-phases, changelog-generate, version-bump]
+    if: |
+      needs.determine-phases.outputs.run_build == 'true' &&
+      (needs.changelog-generate.result == 'success' || needs.changelog-generate.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      deployments: none
+      issues: none
+      packages: none
+      pull-requests: read
+      repository-projects: none
+      security-events: none
+      statuses: read
+      id-token: none
+
+    steps:
+      - name: 🚀 Starting phase - Build
+        run: 'echo "🚀 Starting phase: Build"'
+
+      - name: 📋 Step - Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: 📋 Step - Setup pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+
+      - name: 📋 Step - Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 📋 Step - Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 📋 Step - Lint
+        run: |
+          echo "⏳ Running linters..."
+          pnpm lint
+          echo "✅ Linting passed"
+
+      - name: 📋 Step - Type check
+        run: |
+          echo "⏳ Running type check..."
+          pnpm type-check
+          echo "✅ Type check passed"
+
+      - name: 📋 Step - Test
+        run: |
+          echo "⏳ Running tests..."
+          pnpm test
+          echo "✅ Tests passed"
+
+      - name: 📋 Step - Build CLI package
+        working-directory: packages/opennextjs-cli
+        run: |
+          echo "⏳ Building @jsonbored/opennextjs-cli..."
+          pnpm build
+          echo "✅ CLI package built successfully"
+
+      - name: 📋 Step - Build MCP package
+        working-directory: packages/opennextjs-mcp
+        run: |
+          echo "⏳ Building @jsonbored/opennextjs-mcp..."
+          pnpm build
+          echo "✅ MCP package built successfully"
+
+      - name: ✅ Phase complete - Build
+        run: 'echo "✅ Phase: Build - Complete"'
+
+  # Phase 5: Publish
+  publish:
+    needs: [determine-phases, build, changelog-generate, version-bump]
+    if: |
+      needs.determine-phases.outputs.run_publish == 'true' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      actions: read
+      checks: read
+      contents: write # Required to create GitHub releases
+      deployments: none
+      id-token: write # Required for npm publish (OIDC)
+      issues: none
+      packages: none
+      pull-requests: read
+      repository-projects: none
+      security-events: none
+      statuses: read
+
+    steps:
+      - name: 🚀 Starting phase - Publish
+        run: 'echo "🚀 Starting phase: Publish"'
+
+      - name: 📋 Step - Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # Full history for changelog generation
+
+      - name: 📋 Step - Setup pnpm
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+
+      - name: 📋 Step - Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: 📋 Step - Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 📋 Step - Determine version and tag
+        id: version
+        run: |
+          set -e
+
+          echo "⏳ Determining version and tag..."
+
+          # Get version from various sources
+          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/v*.*.* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
+            echo "📋 Using tag from push event: $TAG_NAME"
+          elif [ "${{ needs.version-bump.outputs.NEW_VERSION }}" != "" ]; then
+            VERSION="${{ needs.version-bump.outputs.NEW_VERSION }}"
+            TAG_NAME="v$VERSION"
+            echo "📋 Using version from version-bump: $VERSION"
+          elif [ -n "${{ needs.determine-phases.outputs.version }}" ]; then
+            VERSION="${{ needs.determine-phases.outputs.version }}"
+            TAG_NAME="v$VERSION"
+            echo "📋 Using version from input: $VERSION"
+          else
+            VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
+            TAG_NAME="v$VERSION"
+            echo "📋 Using version from package.json: $VERSION"
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "TAG=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "✅ Version determined: $VERSION (tag: $TAG_NAME)"
+
+      - name: 📋 Step - Verify package.json versions match
+        run: |
+          set -e
+
+          echo "⏳ Verifying package.json versions match tag..."
+
+          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+
+          # Verify CLI version
+          CLI_VERSION=$(node -p "require('./packages/opennextjs-cli/package.json').version")
+          if [ "$CLI_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ CLI version mismatch: package.json ($CLI_VERSION) != tag ($TAG_VERSION)" >&2
+            exit 1
+          fi
+          echo "✅ CLI version match: $CLI_VERSION"
+
+          # Verify MCP version
+          MCP_VERSION=$(node -p "require('./packages/opennextjs-mcp/package.json').version")
+          if [ "$MCP_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ MCP version mismatch: package.json ($MCP_VERSION) != tag ($TAG_VERSION)" >&2
+            exit 1
+          fi
+          echo "✅ MCP version match: $MCP_VERSION"
+
+      - name: 📋 Step - Build CLI package
+        working-directory: packages/opennextjs-cli
+        run: |
+          echo "⏳ Building @jsonbored/opennextjs-cli..."
+          pnpm build
+          echo "✅ CLI package built"
+
+      - name: 📋 Step - Build MCP package
+        working-directory: packages/opennextjs-mcp
+        run: |
+          echo "⏳ Building @jsonbored/opennextjs-mcp..."
+          pnpm build
+          echo "✅ MCP package built"
+
+      - name: 📋 Step - Setup git-cliff for changelog extraction
+        uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
+        with:
+          version: latest
+
+      - name: 📋 Step - Extract changelog for GitHub Release
+        id: changelog_extract
+        if: needs.changelog-generate.result == 'success'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          echo "⏳ Extracting changelog sections for GitHub Release..."
+
+          # Use changelog from changelog-generate phase if available
+          if [ -n "${{ env.CHANGELOG_SECTION }}" ]; then
+            echo "📋 Using changelog from changelog-generate phase"
+            echo "${{ env.CHANGELOG_SECTION }}" > /tmp/changelog-section.md
+          else
+            # Fallback: extract from existing changelog files
+            echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+            echo "" >> /tmp/changelog-section.md
+
+            # Extract CLI section
+            if [ -f "packages/opennextjs-cli/CHANGELOG.md" ]; then
+              CLI_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
+              if [ -n "$CLI_SECTION" ]; then
+                echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
+                echo "" >> /tmp/changelog-section.md
+                echo "$CLI_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
+                echo "" >> /tmp/changelog-section.md
+              fi
+            fi
+
+            # Extract MCP section
+            if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ]; then
+              MCP_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
+              if [ -n "$MCP_SECTION" ]; then
+                echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
+                echo "" >> /tmp/changelog-section.md
+                echo "$MCP_SECTION" | sed '/^## \[/d' >> /tmp/changelog-section.md || true
+                echo "" >> /tmp/changelog-section.md
+              fi
+            fi
+
+            # If no sections, create generic one
+            if [ ! -s /tmp/changelog-section.md ] || [ "$(wc -l < /tmp/changelog-section.md)" -lt 5 ]; then
+              echo "Release of OpenNext.js CLI and MCP server packages." >> /tmp/changelog-section.md
+              echo "" >> /tmp/changelog-section.md
+            fi
+          fi
+
+          # Set for GitHub release
+          echo "CHANGELOG_SECTION<<EOF" >> "$GITHUB_ENV"
+          cat /tmp/changelog-section.md >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+          echo "✅ Changelog extracted for GitHub Release"
+
+      - name: 📋 Step - Publish CLI to npm (try OIDC first)
         id: publish-cli-oidc
         working-directory: packages/opennextjs-cli
         run: |
+          set -e
+
+          echo "⏳ Publishing @jsonbored/opennextjs-cli to npm (trying OIDC first)..."
+
           # Try publishing with OIDC (if configured)
-          npm publish --access public && \
-          echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via OIDC)" || \
+          if npm publish --access public 2>&1; then
+            echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
+            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
+          else
           echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
+            echo "SUCCESS=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
         continue-on-error: true
 
-      - name: Publish CLI to npm (fallback to NPM_TOKEN)
-        if: steps.publish-cli-oidc.outcome == 'failure'
+      - name: 📋 Step - Publish CLI to npm (fallback to NPM_TOKEN)
+        if: steps.publish-cli-oidc.outputs.SUCCESS != 'true'
         working-directory: packages/opennextjs-cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          set -e
+
+          echo "⏳ Publishing @jsonbored/opennextjs-cli to npm (using NPM_TOKEN)..."
+
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "❌ NPM_TOKEN secret not found. For first release, you need to:" >&2
             echo "   1. Create npm automation token: https://www.npmjs.com/settings/JSONbored/tokens" >&2
@@ -308,37 +990,54 @@ jobs:
             echo "   3. Name the secret: NPM_TOKEN" >&2
             exit 1
           fi
+
           # Configure npm to use token
           echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
           npm publish --access public
           echo "✅ Published @jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
 
-      - name: Publish MCP to npm (try OIDC first)
+      - name: 📋 Step - Publish MCP to npm (try OIDC first)
         id: publish-mcp-oidc
         working-directory: packages/opennextjs-mcp
         run: |
+          set -e
+
+          echo "⏳ Publishing @jsonbored/opennextjs-mcp to npm (trying OIDC first)..."
+
           # Try publishing with OIDC (if configured)
-          npm publish --access public && \
-          echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via OIDC)" || \
+          if npm publish --access public 2>&1; then
+            echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via OIDC)"
+            echo "SUCCESS=true" >> "$GITHUB_OUTPUT"
+          else
           echo "⚠️ OIDC publish failed, will try NPM_TOKEN fallback"
+            echo "SUCCESS=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
         continue-on-error: true
 
-      - name: Publish MCP to npm (fallback to NPM_TOKEN)
-        if: steps.publish-mcp-oidc.outcome == 'failure'
+      - name: 📋 Step - Publish MCP to npm (fallback to NPM_TOKEN)
+        if: steps.publish-mcp-oidc.outputs.SUCCESS != 'true'
         working-directory: packages/opennextjs-mcp
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          set -e
+
+          echo "⏳ Publishing @jsonbored/opennextjs-mcp to npm (using NPM_TOKEN)..."
+
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "❌ NPM_TOKEN secret not found" >&2
             exit 1
           fi
+
           # Configure npm to use token (if not already configured)
           if [ ! -f ~/.npmrc ]; then
             echo "//registry.npmjs.org/:_authToken=$NODE_AUTH_TOKEN" > ~/.npmrc
           fi
+
           npm publish --access public
           echo "✅ Published @jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }} to npm (via NPM_TOKEN)"
+
           echo "" >&2
           echo "💡 After first release, set up OIDC trusted publishing for both packages:" >&2
           echo "   1. Go to: https://www.npmjs.com/settings/JSONbored/automation" >&2
@@ -347,7 +1046,7 @@ jobs:
           echo "   4. Both use: repository JSONbored/opennextjs-cli, workflow .github/workflows/release.yml" >&2
           echo "   Then you can remove the NPM_TOKEN secret." >&2
 
-      - name: Create GitHub Release
+      - name: 📋 Step - Create GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: ${{ steps.version.outputs.TAG }}
@@ -363,3 +1062,9 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Phase complete - Publish
+        run: |
+          echo "✅ Phase: Publish - Complete"
+          echo "✅ Both packages published to npm"
+          echo "✅ GitHub Release created"
