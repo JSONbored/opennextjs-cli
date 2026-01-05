@@ -311,7 +311,12 @@ jobs:
             exit 1
           fi
 
-          if [ "$NEW_VERSION" == "$CURRENT_VERSION" ]; then
+          # For first release (no previous tag), always create tag even if version matches
+          # For subsequent releases, skip if version hasn't changed
+          if [ -z "$LAST_TAG" ]; then
+            echo "📋 First release: will create tag v$NEW_VERSION even though version matches package.json"
+            # Don't skip - proceed with tag creation
+          elif [ "$NEW_VERSION" == "$CURRENT_VERSION" ]; then
             echo "⚠️ No version bump needed (already at $CURRENT_VERSION)"
             echo "SKIP_RELEASE=true" >> "$GITHUB_OUTPUT"
             exit 0
