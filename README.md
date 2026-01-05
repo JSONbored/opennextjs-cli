@@ -1,3 +1,5 @@
+![opennextjs-cli](https://socialify.git.ci/JSONbored/opennextjs-cli/image?custom_description=Interactive+CLI+%2B+MCP+for+OpenNext.js+on+Cloudflare.&description=1&font=Source+Code+Pro&forks=1&issues=1&logo=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F180226629%3Fs%3D200%26v%3D4&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Dark)
+
 # OpenNext.js CLI
 
 <div align="center">
@@ -263,17 +265,6 @@ The CLI supports multiple caching strategies:
 | `r2-do-queue` | ISR with time-based revalidation | Dynamic content with ISR |
 | `r2-do-queue-tag-cache` | Full-featured with on-demand revalidation | Complex apps with on-demand ISR |
 
-## Testing
-
-- **CLI Package**: 162 tests (9 test suites)
-  - Unit tests for all utilities
-  - E2E tests for all commands
-- **MCP Package**: 28 tests (5 test suites)
-  - Server initialization tests
-  - Tool and resource tests
-
-**All tests use real file system operations** (no mocks).
-
 ## Roadmap
 
 **Completed:**
@@ -317,10 +308,6 @@ pnpm dev
 - **[Cloudflare Workers](https://workers.cloudflare.com/)** - Deployment platform
 - **[Model Context Protocol](https://modelcontextprotocol.io/)** - MCP specification
 
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
 ## Support
 
 - [Documentation](https://github.com/JSONbored/opennextjs-cli#readme)
@@ -337,9 +324,19 @@ This tool is built for and powered by [OpenNext.js](https://opennext.js.org/), a
 
 ---
 
+## Star History
+
 <div align="center">
 
-Made with ❤️ by [JSONbored](https://github.com/JSONbored)
+[![Star History Chart](https://api.star-history.com/svg?repos=jsonbored/opennext-cli&type=date&legend=top-left)](https://www.star-history.com/#jsonbored/opennext-cli&type=date&legend=top-left)
+
+</div>
+
+---
+
+<div align="center">
+
+Made with 💜 by [JSONbored](https://github.com/JSONbored)
 
 [⭐ Star on GitHub](https://github.com/JSONbored/opennextjs-cli) • [📦 npm CLI](https://www.npmjs.com/package/@jsonbored/opennextjs-cli) • [📦 npm MCP](https://www.npmjs.com/package/@jsonbored/opennextjs-mcp) • [🐛 Report Issue](https://github.com/JSONbored/opennextjs-cli/issues)
 

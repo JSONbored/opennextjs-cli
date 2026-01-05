@@ -57,22 +57,6 @@ on:
         required: false
         type: string
 
-# YAML anchors for reusable configurations
-x-common-setup: &common-setup
-  - name: Checkout repository
-    uses: actions/checkout@v6
-    with:
-      fetch-depth: 0 # Full history for changelog generation
-  - name: Setup pnpm
-    uses: pnpm/action-setup@v4
-  - name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: '22'
-      cache: 'pnpm'
-  - name: Install dependencies
-    run: pnpm install --frozen-lockfile
-
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -100,6 +84,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Test
+        run: pnpm test
 
       - name: Build CLI package
         working-directory: packages/opennextjs-cli
@@ -245,14 +238,16 @@ jobs:
           # Read from package-specific CHANGELOG.md files
           echo "📝 Extracting changelog sections for release notes..."
           
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          
           # Start with version header
-          echo "## [$TAG_VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
+          echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
           echo "" >> /tmp/changelog-section.md
           
           # Extract CLI section from packages/opennextjs-cli/CHANGELOG.md
           if [ -f "packages/opennextjs-cli/CHANGELOG.md" ]; then
             # Find the version section in CLI changelog
-            CLI_SECTION=$(awk "/^## \[$TAG_VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
+            CLI_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-cli/CHANGELOG.md" | head -n -1 || true)
             if [ -n "$CLI_SECTION" ]; then
               echo "### @jsonbored/opennextjs-cli" >> /tmp/changelog-section.md
               echo "" >> /tmp/changelog-section.md
@@ -265,7 +260,7 @@ jobs:
           # Extract MCP section from packages/opennextjs-mcp/CHANGELOG.md
           if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ]; then
             # Find the version section in MCP changelog
-            MCP_SECTION=$(awk "/^## \[$TAG_VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
+            MCP_SECTION=$(awk "/^## \[$VERSION\]/,/^## \[|^<!-- generated/" "packages/opennextjs-mcp/CHANGELOG.md" | head -n -1 || true)
             if [ -n "$MCP_SECTION" ]; then
               echo "### @jsonbored/opennextjs-mcp" >> /tmp/changelog-section.md
               echo "" >> /tmp/changelog-section.md
@@ -355,7 +350,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.TAG }}
           name: Release ${{ steps.version.outputs.VERSION }}
           body: |
             ## Packages Released

@@ -97,6 +97,15 @@ jobs:
     steps:
       <<: *common-setup
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Test
+        run: pnpm test
+
       - name: Get last tag
         id: last_tag
         run: |
@@ -275,8 +284,11 @@ jobs:
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "✅ Updated both packages to version $NEW_VERSION"
 
-      - <<: *git-config
+      - name: Configure git
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Commit and tag
         if: steps.changes.outputs.HAS_CHANGES == 'true' && steps.version_calc.outputs.SKIP_RELEASE != 'true' && steps.changelog.outputs.CHANGELOG_UPDATED == 'true'
