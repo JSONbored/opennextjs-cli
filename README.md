@@ -1,17 +1,15 @@
-![opennextjs-cli](https://socialify.git.ci/JSONbored/opennextjs-cli/image?custom_description=Interactive+CLI+%2B+MCP+for+OpenNext.js+on+Cloudflare.&description=1&font=Source+Code+Pro&forks=1&issues=1&logo=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F180226629%3Fs%3D200%26v%3D4&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Dark)
+<!-- trunk-ignore-all(markdownlint/MD041) -->
 
-# OpenNext.js CLI
+![opennextjs-cli](https://socialify.git.ci/JSONbored/opennextjs-cli/image?custom_description=Interactive+CLI+%2B+MCP+for+OpenNext.js+on+Cloudflare.&description=1&font=Source+Code+Pro&forks=1&issues=1&logo=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F180226629%3Fs%3D200%26v%3D4&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Dark)
 
 <div align="center">
 
-**🚀 Interactive CLI/TUI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers**
+**Interactive CLI/TUI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers (AWS + Netlify coming soon)**
 
 [![npm version](https://img.shields.io/npm/v/@jsonbored/opennextjs-cli)](https://www.npmjs.com/package/@jsonbored/opennextjs-cli)
 [![npm downloads](https://img.shields.io/npm/dm/@jsonbored/opennextjs-cli)](https://www.npmjs.com/package/@jsonbored/opennextjs-cli)
 [![Node.js version](https://img.shields.io/node/v/@jsonbored/opennextjs-cli)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-> **Note:** This is an unofficial community tool. It is not affiliated with or endorsed by the OpenNext.js team.
 
 [Quick Start](#quick-start) • [Packages](#packages) • [Documentation](#documentation) • [Development](#development)
 
@@ -36,6 +34,7 @@ This monorepo contains **2 npm packages** that share the same GitHub repository 
 The main command-line interface for setting up and managing OpenNext.js projects.
 
 **Installation:**
+
 ```bash
 npm install -g @jsonbored/opennextjs-cli
 # or
@@ -51,6 +50,7 @@ pnpm add -g @jsonbored/opennextjs-cli
 Model Context Protocol server that enables AI tools to interact with OpenNext.js projects.
 
 **Installation:**
+
 ```bash
 npm install -g @jsonbored/opennextjs-mcp
 ```
@@ -195,26 +195,31 @@ pnpm lint
 The CLI provides 15 commands for complete project management:
 
 ### Project Setup
+
 - `init` - Create new Next.js project with OpenNext.js
 - `add` - Add OpenNext.js to existing project
 - `config` - Update configuration
 
 ### Project Management
+
 - `status` - Show project status
 - `validate` - Validate configuration
 - `doctor` - Health checks with auto-fix
 - `setup` - Configure CLI settings
 
 ### Deployment & Development
+
 - `deploy` - Deploy to Cloudflare
 - `preview` - Start local preview server
 - `update` - Update dependencies
 
 ### Environment & Cloudflare
+
 - `env` - Manage environment variables
 - `cloudflare` - Manage Cloudflare authentication
 
 ### Advanced
+
 - `migrate` - Migrate from Vercel/Netlify
 - `mcp` - Setup MCP server
 - `completion` - Shell completion scripts
@@ -226,6 +231,7 @@ The CLI provides 15 commands for complete project management:
 The MCP server provides AI tools with programmatic access to your OpenNext.js projects:
 
 ### Tools (7)
+
 - `get_project_status` - Get project information
 - `validate_configuration` - Validate setup
 - `check_health` - Health checks
@@ -235,12 +241,14 @@ The MCP server provides AI tools with programmatic access to your OpenNext.js pr
 - `update_configuration` - Update config
 
 ### Resources (4)
+
 - `opennextjs://config/wrangler.toml` - Wrangler config
 - `opennextjs://config/open-next.config.ts` - OpenNext config
 - `opennextjs://config/package.json` - Package config
 - `opennextjs://project/structure` - Project structure
 
 ### Prompts (3)
+
 - `setup-opennextjs-project` - Setup guide
 - `troubleshoot-deployment` - Troubleshooting
 - `optimize-cloudflare-config` - Optimization tips
@@ -258,21 +266,23 @@ The MCP server provides AI tools with programmatic access to your OpenNext.js pr
 
 The CLI supports multiple caching strategies:
 
-| Strategy | Description | Use Case |
-|----------|-------------|----------|
-| `static-assets` | SSG-only, no R2 needed | Simple static sites |
-| `r2` | R2 Incremental Cache | Most Next.js apps (recommended) |
-| `r2-do-queue` | ISR with time-based revalidation | Dynamic content with ISR |
+| Strategy                | Description                               | Use Case                        |
+| ----------------------- | ----------------------------------------- | ------------------------------- |
+| `static-assets`         | SSG-only, no R2 needed                    | Simple static sites             |
+| `r2`                    | R2 Incremental Cache                      | Most Next.js apps (recommended) |
+| `r2-do-queue`           | ISR with time-based revalidation          | Dynamic content with ISR        |
 | `r2-do-queue-tag-cache` | Full-featured with on-demand revalidation | Complex apps with on-demand ISR |
 
 ## Roadmap
 
 **Completed:**
+
 - ✅ Phase 1: Core CLI commands (init, add, config, status, validate)
 - ✅ Phase 2: Advanced commands (deploy, preview, update, env, cloudflare, doctor)
 - ✅ Phase 5: MCP server (tools, resources, prompts)
 
 **Coming Soon:**
+
 - Phase 3: Templates, migration helpers, dry-run mode, config export/import
 - Phase 4: CI/CD integration, testing setup, monitoring setup
 

@@ -1,5 +1,3 @@
-# Package Release Workflow
-#
 # Automatically releases both @jsonbored/opennextjs-cli and @jsonbored/opennextjs-mcp
 # packages to npm when a version tag is pushed. Supports both NPM_TOKEN (for first release)
 # and OIDC (for subsequent releases). Both packages are released with synchronized versions.
@@ -49,13 +47,12 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'      # Matches v1.2.3
+      - v*.*.* # Matches v1.2.3
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 0.1.0). Leave empty to use package.json version.'
+        description: Version to release (e.g., 0.1.0). Leave empty to use package.json version.
         required: false
-        type: string
 
 jobs:
   release:
@@ -63,24 +60,33 @@ jobs:
     timeout-minutes: 20
 
     permissions:
-      contents: write # Required to create GitHub releases
+      actions: read
+      checks: read
+      contents: write # Required to create GitHub releases and push tags/commits
+      deployments: none
       id-token: write # Required for npm publish (OIDC)
+      issues: none
+      packages: none
+      pull-requests: none
+      repository-projects: none
+      security-events: none
+      statuses: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
         with:
           fetch-depth: 0 # Full history for changelog generation
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -116,17 +122,17 @@ jobs:
             # Remove 'v' prefix if present
             VERSION="${VERSION#v}"
             TAG="v$VERSION"
-            echo "TAG=$TAG" >> $GITHUB_OUTPUT
-            echo "IS_MANUAL=true" >> $GITHUB_OUTPUT
+            echo "TAG=$TAG" >> "$GITHUB_OUTPUT"
+            echo "IS_MANUAL=true" >> "$GITHUB_OUTPUT"
           else
             # Extract version from tag (e.g., v1.0.0 → 1.0.0)
             TAG_NAME="${{ github.ref_name }}"
             VERSION="${TAG_NAME#v}"
             TAG="$TAG_NAME"
-            echo "IS_MANUAL=false" >> $GITHUB_OUTPUT
+            echo "IS_MANUAL=false" >> "$GITHUB_OUTPUT"
           fi
-          
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
           echo "Tag: $TAG"
 
@@ -153,7 +159,7 @@ jobs:
           echo "✅ MCP version match: $PACKAGE_VERSION"
 
       - name: Setup git-cliff
-        uses: kenji-miyake/setup-git-cliff@v1
+        uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
         with:
           version: latest
 
@@ -163,10 +169,10 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.TAG }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "EXISTS=true" >> $GITHUB_OUTPUT
+            echo "EXISTS=true" >> "$GITHUB_OUTPUT"
             echo "⚠️ Tag $TAG already exists - will use existing tag"
           else
-            echo "EXISTS=false" >> $GITHUB_OUTPUT
+            echo "EXISTS=false" >> "$GITHUB_OUTPUT"
             echo "✅ Tag $TAG does not exist - will create it and generate changelogs first"
           fi
 
@@ -176,29 +182,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          
+
           TAG="${{ steps.version.outputs.TAG }}"
-          
+
           echo "📝 Generating CLI changelog..."
           pnpm changelog:package opennextjs-cli --tag "$TAG" || {
             echo "⚠️ CLI changelog generation failed" >&2
             exit 1
           }
-          
+
           echo "📝 Generating MCP changelog..."
           pnpm changelog:package opennextjs-mcp --tag "$TAG" || {
             echo "⚠️ MCP changelog generation failed" >&2
             exit 1
           }
-          
+
           echo "✅ Changelogs generated successfully"
-          
+
           # Commit changelogs
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add packages/opennextjs-cli/CHANGELOG.md packages/opennextjs-mcp/CHANGELOG.md
-          
+
           if git diff --staged --quiet; then
             echo "No changelog changes to commit"
           else
@@ -206,7 +212,7 @@ jobs:
             git push origin main
             echo "✅ Changelogs committed and pushed"
           fi
-          
+
           # Create and push tag (this will trigger this workflow again with tag push event)
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
@@ -221,29 +227,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          
+
           TAG="${{ steps.version.outputs.TAG }}"
-          
+
           # Generate CLI changelog (writes directly to packages/opennextjs-cli/CHANGELOG.md)
           echo "📝 Generating CLI changelog..."
           pnpm changelog:package opennextjs-cli --tag "$TAG" || \
             echo "⚠️ CLI changelog generation failed" >&2
-          
+
           # Generate MCP changelog (writes directly to packages/opennextjs-mcp/CHANGELOG.md)
           echo "📝 Generating MCP changelog..."
           pnpm changelog:package opennextjs-mcp --tag "$TAG" || \
             echo "⚠️ MCP changelog generation failed" >&2
-          
+
           # Extract changelog sections for GitHub Release notes
           # Read from package-specific CHANGELOG.md files
           echo "📝 Extracting changelog sections for release notes..."
-          
+
           VERSION="${{ steps.version.outputs.VERSION }}"
-          
+
           # Start with version header
           echo "## [$VERSION] - $(date +%Y-%m-%d)" > /tmp/changelog-section.md
           echo "" >> /tmp/changelog-section.md
-          
+
           # Extract CLI section from packages/opennextjs-cli/CHANGELOG.md
           if [ -f "packages/opennextjs-cli/CHANGELOG.md" ]; then
             # Find the version section in CLI changelog
@@ -256,7 +262,7 @@ jobs:
               echo "" >> /tmp/changelog-section.md
             fi
           fi
-          
+
           # Extract MCP section from packages/opennextjs-mcp/CHANGELOG.md
           if [ -f "packages/opennextjs-mcp/CHANGELOG.md" ]; then
             # Find the version section in MCP changelog
@@ -269,18 +275,18 @@ jobs:
               echo "" >> /tmp/changelog-section.md
             fi
           fi
-          
+
           # If no package-specific sections, create a generic one
           if [ ! -s /tmp/changelog-section.md ] || [ "$(wc -l < /tmp/changelog-section.md)" -lt 5 ]; then
             echo "Initial release of OpenNext.js CLI and MCP server packages." >> /tmp/changelog-section.md
             echo "" >> /tmp/changelog-section.md
           fi
-          
+
           # Set changelog section for GitHub release
-          echo "CHANGELOG_SECTION<<EOF" >> $GITHUB_ENV
-          cat /tmp/changelog-section.md >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          
+          echo "CHANGELOG_SECTION<<EOF" >> "$GITHUB_ENV" # Trunk: Add missing newline for echo
+          cat /tmp/changelog-section.md >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV" # Trunk: Add missing newline
+
           echo "✅ Changelogs generated successfully"
           echo "   - packages/opennextjs-cli/CHANGELOG.md"
           echo "   - packages/opennextjs-mcp/CHANGELOG.md"
@@ -348,16 +354,16 @@ jobs:
           echo "   Then you can remove the NPM_TOKEN secret." >&2
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           tag_name: ${{ steps.version.outputs.TAG }}
           name: Release ${{ steps.version.outputs.VERSION }}
           body: |
             ## Packages Released
-            
+
             - `@jsonbored/opennextjs-cli@${{ steps.version.outputs.VERSION }}`
             - `@jsonbored/opennextjs-mcp@${{ steps.version.outputs.VERSION }}`
-            
+
             ${{ env.CHANGELOG_SECTION }}
           draft: false
           prerelease: false

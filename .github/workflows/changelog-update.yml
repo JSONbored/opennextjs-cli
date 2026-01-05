@@ -20,41 +20,51 @@ on:
     types: [closed]
     branches: [main]
     paths:
-      - 'packages/**'
-      - '.github/workflows/changelog-update.yml'
+      - packages/**
+      - .github/workflows/changelog-update.yml
 
-# Only run when PR is merged (not just closed)
 jobs:
   update-changelog:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
     if: github.event.pull_request.merged == true
 
+    # Explicitly set all permissions to avoid write-all: only contents:write for commits
     permissions:
+      actions: read
+      checks: read
       contents: write # Required to commit and push
+      deployments: none
+      id-token: none
+      issues: none
+      packages: none
+      pull-requests: none
+      repository-projects: none
+      security-events: none
+      statuses: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@b4ffde65d8f02787b2c0e554639e0e5e24e7c8c1 # v6
         with:
           fetch-depth: 0 # Full history for git-cliff
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Setup git-cliff
-        uses: kenji-miyake/setup-git-cliff@v1
+        uses: kenji-miyake/setup-git-cliff@e4913b34dd9c321f11f2ef3c3866f800714a1d2e # v1
         with:
           version: latest
 
@@ -64,38 +74,38 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          
+
           # Check if there are any unreleased commits
-          LAST_TAG=$(git describe --tags --match 'v*.*.*' --abbrev=0 2>/dev/null || echo "")
-          
+          LAST_TAG=$(git describe --tags --match v*.*.* --abbrev=0 2>/dev/null || echo "")
+
           if [ -z "$LAST_TAG" ]; then
             echo "No previous tag found, skipping changelog update"
             echo "HAS_CHANGES=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Check if there are commits since last tag
           COMMIT_COUNT=$(git rev-list --count "$LAST_TAG"..HEAD 2>/dev/null || echo "0")
-          
+
           if [ "$COMMIT_COUNT" -eq 0 ]; then
             echo "No new commits since last tag, skipping changelog update"
             echo "HAS_CHANGES=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           echo "Found $COMMIT_COUNT commits since $LAST_TAG"
           echo "HAS_CHANGES=true" >> $GITHUB_OUTPUT
-          
+
           # Generate CLI changelog (writes directly to packages/opennextjs-cli/CHANGELOG.md)
           echo "📝 Generating CLI changelog..."
           pnpm changelog:package opennextjs-cli --unreleased || \
             echo "⚠️ CLI changelog generation failed" >&2
-          
+
           # Generate MCP changelog (writes directly to packages/opennextjs-mcp/CHANGELOG.md)
           echo "📝 Generating MCP changelog..."
           pnpm changelog:package opennextjs-mcp --unreleased || \
             echo "⚠️ MCP changelog generation failed" >&2
-          
+
           echo "✅ Package changelogs updated with unreleased changes"
 
       - name: Configure git
