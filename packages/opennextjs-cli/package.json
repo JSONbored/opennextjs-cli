@@ -1,6 +1,6 @@
 {
   "name": "@jsonbored/opennextjs-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Interactive CLI/TUI tool for setting up and configuring OpenNext.js projects for Cloudflare Workers",
   "type": "module",
   "bin": {

@@ -1,6 +1,6 @@
 {
   "name": "@jsonbored/opennextjs-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for OpenNext.js Cloudflare projects - enables AI tools to interact with OpenNext.js projects",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,7 +26,7 @@
     "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {
-    "@jsonbored/opennextjs-cli": "^0.1.0",
+    "@jsonbored/opennextjs-cli": "^0.1.1",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "zod": "^4.3.4"
   },
