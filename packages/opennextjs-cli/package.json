@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",
-    "@opennextjs/cloudflare": "^1.14.7",
+    "@opennextjs/cloudflare": "^1.17.1",
     "commander": "^14.0.2",
     "fs-extra": "^11.2.0",
     "glob": "^11.0.0",
