@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@jsonbored/opennextjs-cli": "^0.1.1",
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "zod": "^4.3.4"
   },
   "devDependencies": {
