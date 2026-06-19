@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/jsonbored-opennextjs-cli-badge.png)](https://mseep.ai/app/jsonbored-opennextjs-cli)
+
 <!-- trunk-ignore-all(markdownlint/MD041) -->
 
 ![opennextjs-cli](https://socialify.git.ci/JSONbored/opennextjs-cli/image?custom_description=Interactive+CLI+%2B+MCP+for+OpenNext.js+on+Cloudflare.&description=1&font=Source+Code+Pro&forks=1&issues=1&logo=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F180226629%3Fs%3D200%26v%3D4&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Dark)
